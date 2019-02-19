@@ -1,0 +1,16 @@
+st
+device nRF52832_xxAA
+SelectInterface SWD
+speed 4000
+w4 4001e504 2
+sleep 300
+w4 4001e50c 1
+sleep 300
+w4 4001e504 1
+sleep 300
+r
+loadbin /media/programmer_code_dongle/firmware/combined.hex 0x0001C000
+r
+vcom enable
+g
+q

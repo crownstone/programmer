@@ -1,0 +1,8 @@
+st
+device nRF52832_xxAA
+SelectInterface SWD
+speed 4000
+loadbin /media/programmer_code_dongle/firmware/combined.hex 0x0001C000
+r
+g
+qc

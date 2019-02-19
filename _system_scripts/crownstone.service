@@ -1,0 +1,12 @@
+[Unit]
+Description=UsbWatcher
+Documentation=https://crownstone.rocks
+
+[Service]
+Type=forking
+Restart=always
+RestartSec=5
+ExecStart=/home/pi/watcherStart.sh
+
+[Install]
+WantedBy=default.target

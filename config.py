@@ -1,0 +1,5 @@
+NAME_OF_USB_DONGLE = "programmer_code_dongle"
+MOUNT_PATH         = "/media/"
+STATE_MANAGER_PATH = MOUNT_PATH + NAME_OF_USB_DONGLE + "/ProggerStateManager.py"
+TEST_RUNNER_PATH   = MOUNT_PATH + NAME_OF_USB_DONGLE + "/TestRunner.py"
+FW_SCRIPT_PATH     = MOUNT_PATH + NAME_OF_USB_DONGLE + "/firmware/"
