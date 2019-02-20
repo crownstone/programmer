@@ -57,27 +57,28 @@ def gt():
 class TestRunner:
 
     def __init__(self):
-        self.displayDriver = DisplayDriver()
-        self.displayDriver.start()
-
-        self.loadingRunner = LoadingRunner()
-
-        self.macAddress = None
-        self.highPowerMeasurement = 3
-        self.lowPowerMeasurement = 0
-
-        signal.signal(signal.SIGINT, self.close)
-        signal.signal(signal.SIGTERM, self.close)
-
         self.loop = asyncio.new_event_loop()
-
-        # run tests
-        self.loop.run_until_complete(self.runTests())
 
         self.bluenet = None
         self.bluenetBLE = None
         self.loadingRunner = None
         self.running = True
+        self.macAddress = None
+        self.highPowerMeasurement = 3
+        self.lowPowerMeasurement = 0
+
+        self.displayDriver = DisplayDriver()
+        self.displayDriver.start()
+
+        self.loadingRunner = LoadingRunner()
+
+        signal.signal(signal.SIGINT, self.close)
+        signal.signal(signal.SIGTERM, self.close)
+
+        # run tests
+        self.loop.run_until_complete(self.runTests())
+
+
 
 
     def close(self, source=None, frame=None):
@@ -99,75 +100,78 @@ class TestRunner:
 
 
     async def runTests(self):
-        # show loading bar
-        self.loadingRunner.start()
+        try:
+            # show loading bar
+            self.loadingRunner.start()
 
-        print(gt(), "----- Programming Crownstone...")
-        initialProgrammingResult = programCrownstone()
-        self.loadingRunner.setProgress( 1 / 6 )
-        if initialProgrammingResult[0] == 0:
-            if initialProgrammingResult[1] < 3.2:
-                await self.endInErrorCode(ErrorCodes.E_3V3_TOO_LOW)
-                return
+            initialProgrammingResult = programCrownstone()
 
-            if await self.initLibs() is False:
-               return
-
-            await self._quickSleeper(1.5)  # wait for reboot
-            await self.enableUart()
-
-            self.loadingRunner.setProgress(2 / 6)
-
-            if await self.getMacAddress() is False: # will retry 2 times
-                return
-            if await self.checkForSetupMode() is False:
-                return
-            if await self.setupCrownstone() is False: # will retry 3 times
-                return
-
-            self.loadingRunner.setProgress(3 / 6)
-
-            if await self.checkForNormalMode() is False:
-                return
-            if await self.checkHighPowerState() is False:
-                return
-
-            self.loadingRunner.setProgress(4 / 6)
-
-            self.relayOff()
-            if await self.checkLowPowerState() is False:
-                return
-            if await self.igbtsOn() is False:
-                return
-            if await self.verifyHighPowerState() is False:
-                return
-
-
-            self.loadingRunner.setProgress(5 / 6)
-
-            # kill test here if we need to stop.
-            if not self.running:
-                return
-
-            # flash Crownstone again
-            print(gt(), "----- Test Complete, reprogramming Crownstone...")
-            secondProgrammingResult = programCrownstone()
-            if secondProgrammingResult[0] == 0:
-                print(gt(), "----- Test completed successfully!")
-                await self.endInSuccess()
-                return
-            else:
-                print("Could not reprogram Crownstone")
-                if secondProgrammingResult[1] < 3.2:
+            self.loadingRunner.setProgress( 1 / 6 )
+            if initialProgrammingResult[0] == 0:
+                if initialProgrammingResult[1] < 3.2:
                     await self.endInErrorCode(ErrorCodes.E_3V3_TOO_LOW)
                     return
+
+                if await self.initLibs() is False:
+                   return
+
+                await self._quickSleeper(1.5)  # wait for reboot
+                await self.enableUart()
+
+                self.loadingRunner.setProgress(2 / 6)
+
+                if await self.getMacAddress() is False: # will retry 2 times
+                    return
+                if await self.checkForSetupMode() is False:
+                    return
+                if await self.setupCrownstone() is False: # will retry 3 times
+                    return
+
+                self.loadingRunner.setProgress(3 / 6)
+
+                if await self.checkForNormalMode() is False:
+                    return
+                if await self.checkHighPowerState() is False:
+                    return
+
+                self.loadingRunner.setProgress(4 / 6)
+
+                self.relayOff()
+                if await self.checkLowPowerState() is False:
+                    return
+                if await self.igbtsOn() is False:
+                    return
+                if await self.verifyHighPowerState() is False:
+                    return
+
+
+                self.loadingRunner.setProgress(5 / 6)
+
+                # kill test here if we need to stop.
+                if not self.running:
+                    return
+
+                # flash Crownstone again
+                print(gt(), "----- Test Complete, reprogramming Crownstone...")
+                secondProgrammingResult = programCrownstone()
+                if secondProgrammingResult[0] == 0:
+                    print(gt(), "----- Test completed successfully!")
+                    await self.endInSuccess()
+                    return
+                else:
+                    print("Could not reprogram Crownstone")
+                    if secondProgrammingResult[1] < 3.2:
+                        await self.endInErrorCode(ErrorCodes.E_3V3_TOO_LOW)
+                        return
+                    await self.endInErrorCode(ErrorCodes.E_COULD_NOT_PROGRAM)
+                    return
+
+            else:
+                # failed programming the Crownstone
                 await self.endInErrorCode(ErrorCodes.E_COULD_NOT_PROGRAM)
                 return
-
-        else:
-            # failed programming the Crownstone
-            await self.endInErrorCode(ErrorCodes.E_COULD_NOT_PROGRAM)
-            return
+        except:
+            await self.endInErrorCode(ErrorCodes.E_TESTER_NOT_WORKING)
 
 
 
