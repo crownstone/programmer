@@ -59,7 +59,11 @@ class UartBridge (threading.Thread):
                 readBuffer.addByteArray(bytes)
 
         print("Cleaning up")
+        self.serialController.reset_input_buffer()
+        self.serialController.reset_output_buffer()
         self.serialController.close()
+        del self.serialController
+        self.serialController = None
 
     def writeToUart(self, data):
         # print("Writing to UART", data)

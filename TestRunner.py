@@ -36,7 +36,8 @@ from vendor.bluepy.btle import BTLEException
 
 class ErrorCodes(Enum):
     E_TESTER_NOT_WORKING            = [1]
-    E_COULD_NOT_PROGRAM             = [2]
+    E_COULD_NOT_PROGRAM             = [2,1]
+    E_COULD_NOT_PROGRAM_3v3_TOO_LOW = [2,2]
     E_3V3_TOO_LOW                   = [3]
     E_NO_MAC_ADDRESS                = [4,1]
     E_NOT_SEEN_IN_SETUP_MODE        = [4,2]
@@ -53,6 +54,8 @@ class ErrorCodes(Enum):
 def gt():
     return "{:.3f}".format(time.time())
 
+
+UART_ADDRESS = "/dev/ttyACM0"
 
 class TestRunner:
 
@@ -100,87 +103,85 @@ class TestRunner:
 
 
     async def runTests(self):
-        try:
-            # show loading bar
-            self.loadingRunner.start()
+        # show loading bar
+        self.loadingRunner.start()
 
-            initialProgrammingResult = programCrownstone()
+        print(gt(), "----- Programming the Crownstone...")
+        initialProgrammingResult = programCrownstone()
 
-            self.loadingRunner.setProgress( 1 / 6 )
-            if initialProgrammingResult[0] == 0:
-                if initialProgrammingResult[1] < 3.2:
+        self.loadingRunner.setProgress( 1 / 6 )
+        if initialProgrammingResult[0] == 0:
+            if initialProgrammingResult[1] < 3.2:
+                await self.endInErrorCode(ErrorCodes.E_3V3_TOO_LOW)
+                return
+
+            if await self.initLibs() is False:
+               return
+
+            await self._quickSleeper(1.5)  # wait for reboot
+            await self.enableUart()
+
+            self.loadingRunner.setProgress(2 / 6)
+
+            if await self.getMacAddress() is False: # will retry 2 times
+                return
+            if await self.checkForSetupMode() is False:
+                return
+            if await self.setupCrownstone() is False: # will retry 3 times
+                return
+
+            self.loadingRunner.setProgress(3 / 6)
+
+            if await self.checkForNormalMode() is False:
+                return
+            if await self.checkHighPowerState() is False:
+                return
+
+            self.loadingRunner.setProgress(4 / 6)
+
+            self.relayOff()
+            if await self.checkLowPowerState() is False:
+                return
+            if await self.igbtsOn() is False:
+                return
+            if await self.verifyHighPowerState() is False:
+                return
+
+
+            self.loadingRunner.setProgress(5 / 6)
+
+            # kill test here if we need to stop.
+            if not self.running:
+                return
+
+            # flash Crownstone again
+            print(gt(), "----- Test Complete, reprogramming Crownstone...")
+            secondProgrammingResult = programCrownstone()
+            if secondProgrammingResult[0] == 0:
+                print(gt(), "----- Test completed successfully!")
+                await self.endInSuccess()
+                return
+            else:
+                print(gt(), "----- Could not reprogram Crownstone")
+                if secondProgrammingResult[1] < 3.2:
                     await self.endInErrorCode(ErrorCodes.E_3V3_TOO_LOW)
                     return
-
-                if await self.initLibs() is False:
-                   return
-
-                await self._quickSleeper(1.5)  # wait for reboot
-                await self.enableUart()
-
-                self.loadingRunner.setProgress(2 / 6)
-
-                if await self.getMacAddress() is False: # will retry 2 times
-                    return
-                if await self.checkForSetupMode() is False:
-                    return
-                if await self.setupCrownstone() is False: # will retry 3 times
-                    return
-
-                self.loadingRunner.setProgress(3 / 6)
-
-                if await self.checkForNormalMode() is False:
-                    return
-                if await self.checkHighPowerState() is False:
-                    return
-
-                self.loadingRunner.setProgress(4 / 6)
-
-                self.relayOff()
-                if await self.checkLowPowerState() is False:
-                    return
-                if await self.igbtsOn() is False:
-                    return
-                if await self.verifyHighPowerState() is False:
-                    return
-
-
-                self.loadingRunner.setProgress(5 / 6)
-
-                # kill test here if we need to stop.
-                if not self.running:
-                    return
-
-                # flash Crownstone again
-                print(gt(), "----- Test Complete, reprogramming Crownstone...")
-                secondProgrammingResult = programCrownstone()
-                if secondProgrammingResult[0] == 0:
-                    print(gt(), "----- Test completed successfully!")
-                    await self.endInSuccess()
-                    return
-                else:
-                    print("Could not reprogram Crownstone")
-                    if secondProgrammingResult[1] < 3.2:
-                        await self.endInErrorCode(ErrorCodes.E_3V3_TOO_LOW)
-                        return
-                    await self.endInErrorCode(ErrorCodes.E_COULD_NOT_PROGRAM)
-                    return
-
-            else:
-                # failed programming the Crownstone
                 await self.endInErrorCode(ErrorCodes.E_COULD_NOT_PROGRAM)
                 return
-        except:
-            await self.endInErrorCode(ErrorCodes.E_TESTER_NOT_WORKING)
 
+        else:
+            # failed programming the Crownstone
+            if initialProgrammingResult[1] < 3.2:
+                await self.endInErrorCode(ErrorCodes.E_COULD_NOT_PROGRAM_3v3_TOO_LOW)
+            else:
+                await self.endInErrorCode(ErrorCodes.E_COULD_NOT_PROGRAM)
 
 
 
     async def initLibs(self):
-        # success
         self.bluenet = Bluenet()
         try:
-            self.bluenet.initializeUSB("/dev/ttyACM0")  # TODO: get tty address dynamically
+            self.bluenet.initializeUSB(UART_ADDRESS)  # TODO: get tty address dynamically
         except:
             print(gt(), "----- ----- Error in settings UART Address", sys.exc_info()[0])
             await self.endInErrorCode(ErrorCodes.E_TESTER_NOT_WORKING)
@@ -203,9 +204,25 @@ class TestRunner:
         print(gt(), "----- Get MAC address...")
         self.macAddress = await self._getMacAddress()
         if self.macAddress is None:
-            if attempt < 2:
+            if attempt < 1 or 1 < attempt < 2:
                 await self._quickSleeper(1)
                 await self.getMacAddress(attempt+1)
+            elif attempt < 2:
+                print("Attempting to reinitialize the library")
+                self.bluenet.stop()
+                await self._quickSleeper(1)
+                del self.bluenet
+                self.bluenet = None
+                await self._quickSleeper(1)
+                try:
+                    self.bluenet.initializeUSB(UART_ADDRESS)  # TODO: get tty address dynamically
+                except:
+                    print(gt(), "----- ----- Error in settings UART Address", sys.exc_info()[0])
+                    await self.endInErrorCode(ErrorCodes.E_TESTER_NOT_WORKING)
+                    return False
+
+                await self._quickSleeper(1)
+                await self.getMacAddress(attempt + 1)
             else:
                 await self.endInErrorCode(ErrorCodes.E_NO_MAC_ADDRESS)
                 return False
@@ -308,13 +325,13 @@ class TestRunner:
 
 
 
-    async def verifyHighPowerState(self):
+    async def verifyHighPowerState(self, attempt=0):
         # kill test here if we need to stop.
         if not self.running:
             return False
 
         # UART --> Get power measurement for the 3W (HIGH MATCH)
-        print(gt(), "----- Getting measurement for IGBT's ON...")
+        print(gt(), "----- Getting measurement for IGBT's ON... attempt number ", attempt)
         measurement = await self.getPowerMeasurement(100)
         if measurement["powerMeasurement"] is None:
             await self.endInErrorCode(ErrorCodes.E_POWER_MEASUREMENT_NOT_WORKING)
@@ -322,14 +339,17 @@ class TestRunner:
         elif measurement["switchState"] != 100:
             await self.endInErrorCode(ErrorCodes.E_CAN_NOT_TURN_ON_IGBTS)
             return False
-        elif -1 < measurement["powerMeasurement"] - self.highPowerMeasurement < 1:
+        elif -1.5 < measurement["powerMeasurement"] - self.highPowerMeasurement < 1.5:
             pass
-        elif -1 < measurement["powerMeasurement"] - self.lowPowerMeasurement < 1:
+        elif -1.5 < measurement["powerMeasurement"] - self.lowPowerMeasurement < 1.5 and attempt > 2:
             await self.endInErrorCode(ErrorCodes.E_IGBTS_NOT_WORKING)
             return False
-        else:
+        elif attempt > 2:
             await self.endInErrorCode(ErrorCodes.E_POWER_MEASUREMENT_NOT_WORKING)
             return False
+        else:
+            print("Received measurement", measurement["powerMeasurement"], "vs high", self.highPowerMeasurement, "vs low", self.lowPowerMeasurement)
+            return await self.verifyHighPowerState(attempt+1)
 
 
     async def setupCrownstone(self, attempt=0):

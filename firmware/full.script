@@ -11,6 +11,4 @@ sleep 300
 r
 loadbin /media/programmer_code_dongle/firmware/combined.hex 0x0001C000
 r
-vcom enable
-g
 q
