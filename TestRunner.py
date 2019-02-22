@@ -35,12 +35,12 @@ from vendor.bluepy.btle import BTLEException
 
 
 class ErrorCodes(Enum):
+    E_NO_UART_RESTART_TEST          = [0]
     E_TESTER_NOT_WORKING            = [1]
     E_COULD_NOT_PROGRAM             = [2,1]
     E_COULD_NOT_PROGRAM_3v3_TOO_LOW = [2,2]
     E_3V3_TOO_LOW                   = [3]
-    E_NO_MAC_ADDRESS                = [4,1]
-    E_NOT_SEEN_IN_SETUP_MODE        = [4,2]
+    E_NOT_SEEN_IN_SETUP_MODE        = [4]
     E_NO_BLE_SCAN_RECEIVED          = [5]
     E_COULD_NOT_SETUP               = [6]
     E_RELAY_NOT_ON                  = [7,1]
@@ -199,34 +199,14 @@ class TestRunner:
         await self._quickSleeper(0.75)
 
 
-    async def getMacAddress(self, attempt=0):
+    async def getMacAddress(self):
         # UART --> Ask for MAC address
         print(gt(), "----- Get MAC address...")
         self.macAddress = await self._getMacAddress()
-        if self.macAddress is None:
-            if attempt < 1 or 1 < attempt < 2:
-                await self._quickSleeper(1)
-                await self.getMacAddress(attempt+1)
-            elif attempt < 2:
-                print("Attempting to reinitialize the library")
-                self.bluenet.stop()
-                await self._quickSleeper(1)
-                del self.bluenet
-                self.bluenet = None
-                await self._quickSleeper(1)
-                try:
-                    self.bluenet.initializeUSB(UART_ADDRESS)  # TODO: get tty address dynamically
-                except:
-                    print(gt(), "----- ----- Error in settings UART Address", sys.exc_info()[0])
-                    await self.endInErrorCode(ErrorCodes.E_TESTER_NOT_WORKING)
-                    return False
-
-                await self._quickSleeper(1)
-                await self.getMacAddress(attempt + 1)
-            else:
-                await self.endInErrorCode(ErrorCodes.E_NO_MAC_ADDRESS)
-                return False
         print(gt(), "----- Received MAC address:", self.macAddress)
+        if self.macAddress is None:
+            await self.endInErrorCode(ErrorCodes.E_NO_UART_RESTART_TEST)
+            return False
 
 
     async def checkForSetupMode(self):
