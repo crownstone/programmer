@@ -65,8 +65,16 @@ class ProggerStateManager:
         self.testsActivated = False
         self.ledController.blink()
         if self.session is not None:
+            print("ProggerStateManager: Terminating tests...")
             self.session.terminate()
-            time.sleep(3)
+            try:
+                print("ProggerStateManager: Waiting for tests to terminate...")
+                self.session.wait(5)
+                print("ProggerStateManager: Terminated.")
+            except:
+                print("ProggerStateManager: Forced to kill the tests....")
+                self.session.kill()
+                time.sleep(3)
             self.session = None
 
 

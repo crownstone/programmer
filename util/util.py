@@ -37,5 +37,9 @@ def programCrownstone():
             if len(responseArray[1]) > 5:
                 vRef = float(responseArray[1][0:5])
 
+
+    if session.returncode != 0:
+        print("FAILED TO PROGRAM", stdout)
+
     return (session.returncode, vRef)
 

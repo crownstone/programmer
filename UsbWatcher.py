@@ -47,11 +47,20 @@ class ProggerManager:
         print("ProggerManager: Kill process")
         self.running = False
         if self.session is not None:
-            print("Terminating session")
+            print("ProggerManager: Terminating session")
             self.session.terminate()
+            try:
+                print("ProggerManager: Waiting to terminate")
+                self.session.wait(5)
+                print("ProggerManager: Terminated.")
+            except:
+                print("ProggerManager: Terminate not successful. Killing now.")
+                self.session.kill()
+                time.sleep(3)
+
             self.session = None
         else:
-            print("I dont have a session!")
+            print("ProggerManager: I dont have a session!")
 
 
 theManager = ProggerManager()

@@ -35,20 +35,22 @@ from vendor.bluepy.btle import BTLEException
 
 
 class ErrorCodes(Enum):
-    E_NO_UART_RESTART_TEST          = [0]
-    E_TESTER_NOT_WORKING            = [1]
-    E_COULD_NOT_PROGRAM             = [2,1]
-    E_COULD_NOT_PROGRAM_3v3_TOO_LOW = [2,2]
-    E_3V3_TOO_LOW                   = [3]
-    E_NOT_SEEN_IN_SETUP_MODE        = [4]
-    E_NO_BLE_SCAN_RECEIVED          = [5]
-    E_COULD_NOT_SETUP               = [6]
-    E_RELAY_NOT_ON                  = [7,1]
-    E_RELAY_NOT_OFF                 = [7,2]
-    E_RELAY_NOT_WORKING             = [7,3]
-    E_POWER_MEASUREMENT_NOT_WORKING = [8]
-    E_CAN_NOT_TURN_ON_IGBTS         = [9,1]
-    E_IGBTS_NOT_WORKING             = [9,2]
+    E_NO_UART_RESTART_TEST           = [0]
+    E_TESTER_NOT_WORKING             = [1]
+    E_COULD_NOT_PROGRAM              = [2,1]
+    E_COULD_NOT_PROGRAM_3v3_TOO_LOW  = [2,2]
+    E_COULD_NOT_PROGRAM_NO_3V3       = [2,3]
+    E_COULD_NOT_PROGRAM_JLINK_FAILED = [2,4]
+    E_3V3_TOO_LOW                    = [3]
+    E_NOT_SEEN_IN_SETUP_MODE         = [4]
+    E_NO_BLE_SCAN_RECEIVED           = [5]
+    E_COULD_NOT_SETUP                = [6]
+    E_RELAY_NOT_ON                   = [7,1]
+    E_RELAY_NOT_OFF                  = [7,2]
+    E_RELAY_NOT_WORKING              = [7,3]
+    E_POWER_MEASUREMENT_NOT_WORKING  = [8]
+    E_CAN_NOT_TURN_ON_IGBTS          = [9,1]
+    E_IGBTS_NOT_WORKING              = [9,2]
 
 
 def gt():
@@ -170,7 +172,10 @@ class TestRunner:
                 return
 
         else:
+            print("Failed to program, Result", initialProgrammingResult)
             # failed programming the Crownstone
+            if initialProgrammingResult[1] is None:
+                await self.endInErrorCode(ErrorCodes.E_COULD_NOT_PROGRAM_JLINK_FAILED)
             if initialProgrammingResult[1] < 3.2:
                 await self.endInErrorCode(ErrorCodes.E_COULD_NOT_PROGRAM_3v3_TOO_LOW)
             else:
@@ -179,11 +184,13 @@ class TestRunner:
 
 
     async def initLibs(self):
+        import traceback
         self.bluenet = Bluenet()
         try:
             self.bluenet.initializeUSB(UART_ADDRESS)  # TODO: get tty address dynamically
         except:
             print(gt(), "----- ----- Error in settings UART Address", sys.exc_info()[0])
+            traceback.print_exc()
             await self.endInErrorCode(ErrorCodes.E_TESTER_NOT_WORKING)
             return False
 
@@ -356,7 +363,7 @@ class TestRunner:
             if self.running:
                 await self._quickSleeper(1 + attempt)
                 print("Retrying...")
-                await self.setupCrownstone(self.macAddress, attempt + 1)
+                await self.setupCrownstone(attempt + 1)
 
 
     async def _getMacAddress(self):
