@@ -14,7 +14,8 @@ chmod a+x /home/pi/watcherStart.sh
 mkdir -p /home/pi/.config/systemd/user/
 cp /media/programmer_code_dongle/_system_scripts/crownstone.service /home/pi/.config/systemd/user/
 chmod a-x /home/pi/.config/systemd/user/crownstone.service
+echo "Enable crownstone service"
 systemctl --user enable crownstone
-
-reboot
+echo "Reboot"
+sudo reboot
 

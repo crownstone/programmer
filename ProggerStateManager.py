@@ -53,6 +53,8 @@ class ProggerStateManager:
                 else:
                     print("Lid is open.")
                     self.killTests()
+                    self.testsActivated = False
+                    self.ledController.blink()
 
             time.sleep(0.1)
 
@@ -62,14 +64,13 @@ class ProggerStateManager:
 
 
     def killTests(self):
-        self.testsActivated = False
         self.ledController.blink()
         if self.session is not None:
             print("ProggerStateManager: Terminating tests...")
             self.session.terminate()
             try:
                 print("ProggerStateManager: Waiting for tests to terminate...")
-                self.session.wait(5)
+                self.session.wait(3)
                 print("ProggerStateManager: Terminated.")
             except:
                 print("ProggerStateManager: Forced to kill the tests....")

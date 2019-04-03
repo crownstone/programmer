@@ -1,5 +1,7 @@
-import signal,time, asyncio, sys
 from util import path
+
+import signal,time, asyncio, sys
+
 # if this script is running, the button has been pressed
 
 # check if the lid is closed
@@ -27,12 +29,15 @@ from BluenetLib.BLE import BluenetBle
 from BluenetLib.lib.topics.DevTopics import DevTopics
 from DisplayBoard.DisplayDriver import DisplayDriver
 from DisplayBoard.LoadingRunner import LoadingRunner
+from lib.PowerStateMeasurement.PowerStateMeasurement import PowerStateMeasurement
 from util.util import programCrownstone, findUsbBleDongleHciIndex
 
 from enum import Enum
 
 from vendor.bluepy.btle import BTLEException
 
+IGBTs = 1
+RELAY = 2
 
 class ErrorCodes(Enum):
     E_NO_UART_RESTART_TEST           = [0]
@@ -50,7 +55,9 @@ class ErrorCodes(Enum):
     E_RELAY_NOT_WORKING              = [7,3]
     E_POWER_MEASUREMENT_NOT_WORKING  = [8]
     E_CAN_NOT_TURN_ON_IGBTS          = [9,1]
-    E_IGBTS_NOT_WORKING              = [9,2]
+    E_IGBT_Q1_NOT_WORKING            = [9,2,1]
+    E_IGBT_Q2_NOT_WORKING            = [9,2,2]
+    E_IGBTS_NOT_WORKING              = [9,2,3]
 
 
 def gt():
@@ -75,6 +82,9 @@ class TestRunner:
         self.displayDriver = DisplayDriver()
         self.displayDriver.start()
 
+        self.powerState = PowerStateMeasurement()
+        self.powerState.setup()
+
         self.loadingRunner = LoadingRunner()
 
         signal.signal(signal.SIGINT, self.close)
@@ -91,6 +101,7 @@ class TestRunner:
         self.loadingRunner.stop()
         self.displayDriver.clearDisplay(True)
         self.displayDriver.cleanup()
+        self.powerState.cleanup()
         self.running = False
         time.sleep(2)
         quit()
@@ -136,15 +147,21 @@ class TestRunner:
 
             if await self.checkForNormalMode() is False:
                 return
+            if await self.checkIfLoadIsPowered(RELAY) is False:
+                return
             if await self.checkHighPowerState() is False:
                 return
 
             self.loadingRunner.setProgress(4 / 6)
 
             self.relayOff()
+            if await self.checkIfLoadIsNotPowered() is False:
+                return
             if await self.checkLowPowerState() is False:
                 return
             if await self.igbtsOn() is False:
+                return
+            if await self.checkIfLoadIsPowered(IGBTs) is False:
                 return
             if await self.verifyHighPowerState() is False:
                 return
@@ -311,6 +328,53 @@ class TestRunner:
         self.bluenet._usbDev.toggleIGBTs(True)
 
 
+    async def checkIfLoadIsPowered(self, type):
+        await asyncio.sleep(0.5)
+        self.powerState.checkPowerStates(2)
+        if not self.powerState.powerThroughLoad():
+
+            # no power through the load
+            # on the upside, IGBTs are not leaking!
+            if type == IGBTs:
+                await self.endInErrorCode(ErrorCodes.E_RELAY_NOT_WORKING)
+            else:
+                await self.endInErrorCode(ErrorCodes.E_IGBTS_NOT_WORKING)
+            return False
+        elif not self.powerState.powerThroughI1():
+            # no power though I1 (Q1)
+            # this IGBT is broken
+            await self.endInErrorCode(ErrorCodes.E_IGBT_Q1_NOT_WORKING)
+            return False
+        elif not self.powerState.powerThroughI2():
+            # no power though I2 (Q2)
+            # this IGBT is broken
+            await self.endInErrorCode(ErrorCodes.E_IGBT_Q2_NOT_WORKING)
+            return False
+        else:
+            return True
+
+
+
+    async def checkIfLoadIsNotPowered(self):
+        await asyncio.sleep(0.5)
+        self.powerState.checkPowerStates(0.5)
+        if self.powerState.powerThroughI1() and self.powerState.powerThroughI2():
+            # power through the load, Q1 and Q2 are leaking (or RELAY wont turn off)
+            await self.endInErrorCode(ErrorCodes.E_IGBTS_NOT_WORKING)
+            return False
+        elif self.powerState.powerThroughI1():
+            # no power though I1 (Q1)
+            # this IGBT is broken
+            await self.endInErrorCode(ErrorCodes.E_IGBT_Q1_NOT_WORKING)
+            return False
+        elif self.powerState.powerThroughI2():
+            # no power though I2 (Q2)
+            # this IGBT is broken
+            await self.endInErrorCode(ErrorCodes.E_IGBT_Q2_NOT_WORKING)
+            return False
+        else:
+            return True
+
 
     async def verifyHighPowerState(self, attempt=0):
         # kill test here if we need to stop.
@@ -318,6 +382,8 @@ class TestRunner:
             return False
 
         # UART --> Get power measurement for the 3W (HIGH MATCH)
+        dWbetweenHighAndLow = 1.5
+
         print(gt(), "----- Getting measurement for IGBT's ON... attempt number ", attempt)
         measurement = await self.getPowerMeasurement(100)
         if measurement["powerMeasurement"] is None:
@@ -326,9 +392,9 @@ class TestRunner:
         elif measurement["switchState"] != 100:
             await self.endInErrorCode(ErrorCodes.E_CAN_NOT_TURN_ON_IGBTS)
             return False
-        elif -1.5 < measurement["powerMeasurement"] - self.highPowerMeasurement < 1.5:
+        elif -dWbetweenHighAndLow < measurement["powerMeasurement"] - self.highPowerMeasurement < dWbetweenHighAndLow:
             pass
-        elif -1.5 < measurement["powerMeasurement"] - self.lowPowerMeasurement < 1.5 and attempt > 2:
+        elif -dWbetweenHighAndLow < measurement["powerMeasurement"] - self.lowPowerMeasurement < dWbetweenHighAndLow and attempt > 2:
             await self.endInErrorCode(ErrorCodes.E_IGBTS_NOT_WORKING)
             return False
         elif attempt > 2:

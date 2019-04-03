@@ -29,7 +29,7 @@ class UsbDevHandler:
     
     def requestCrownstoneId(self):
         """
-            Request the Crownstone ID. This is a uint16
+            Request the Crownstone ID.
             :return:
         """
         self._send(UartWrapper(UartTxType.GET_CROWNSTONE_ID, []).getPacket())
