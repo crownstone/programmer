@@ -55,7 +55,8 @@ class ProggerManager:
                 print("ProggerManager: Terminated.")
             except:
                 print("ProggerManager: Terminate not successful. Killing now.")
-                self.session.kill()
+                if self.session is not None:
+                    self.session.kill()
                 time.sleep(3)
 
             self.session = None

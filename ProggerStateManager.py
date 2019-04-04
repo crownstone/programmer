@@ -74,7 +74,8 @@ class ProggerStateManager:
                 print("ProggerStateManager: Terminated.")
             except:
                 print("ProggerStateManager: Forced to kill the tests....")
-                self.session.kill()
+                if self.session is not None:
+                    self.session.kill()
                 time.sleep(3)
             self.session = None
 
