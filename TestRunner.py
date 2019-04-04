@@ -96,17 +96,18 @@ class TestRunner:
 
 
     def close(self, source=None, frame=None):
-        print("----- Closing Test")
+        print(gt(), "----- Closing Test...")
         self.cleanup()
         self.loadingRunner.stop()
         try:
             self.displayDriver.clearDisplay(True)
         except:
-            print("----- Error while cleaning display")
+            print(gt(), "----- Error while cleaning display")
 
         self.displayDriver.cleanup()
         self.powerState.cleanup()
         self.running = False
+        print(gt(), "----- Test is closed. Quitting Test...")
         time.sleep(2)
         quit()
 
@@ -144,8 +145,8 @@ class TestRunner:
                 return
             if await self.checkForSetupMode() is False:
                 return
-            if await self.setupCrownstone() is False: # will retry 3 times
-                return
+
+            await self.setupCrownstone()
 
             self.loadingRunner.setProgress(3 / 6)
 
@@ -213,7 +214,7 @@ class TestRunner:
                 await self.endInErrorCode(ErrorCodes.E_COULD_NOT_FIND_CROWNSTONE)
                 return False
             else:
-                self.bluenet.initializeUSB(address)  # TODO: get tty address dynamically
+                self.bluenet.initializeUSB(address)
         except:
             print(gt(), "----- ----- Error in settings UART Address", sys.exc_info()[0])
             traceback.print_exc()
@@ -272,6 +273,8 @@ class TestRunner:
         elif not isInNormalMode:
             await self.endInErrorCode(ErrorCodes.E_COULD_NOT_SETUP)
             return False
+
+        print(gt(), "----- Setup was successful. Crownstone is in normal mode")
 
 
     async def checkHighPowerState(self):
@@ -414,11 +417,8 @@ class TestRunner:
             return await self.verifyHighPowerState(attempt+1)
 
 
-    async def setupCrownstone(self, attempt=0):
-        if attempt > 3:
-            return False
-
-        print(gt(), "----- Setting up Crownstone... attempt #", attempt)
+    async def setupCrownstone(self):
+        print(gt(), "----- Setting up Crownstone...")
         try:
             # BLE --> BLE fast setup --> THIS TURNS THE RELAY ON AUTOMATICALLY
             self.bluenetBLE.setupCrownstone(
@@ -432,13 +432,9 @@ class TestRunner:
         except:
             err = sys.exc_info()[0]
             if type(sys.exc_info()[0]) is BTLEException:
-                print("----- Crownstone might have failed to setup... BTLE", err.message, err.__str__())
+                print(gt(), "----- Crownstone might have failed to setup... BTLE", err.message, err.__str__())
             else:
-                print("----- Crownstone might have failed to setup...", err)
-            if self.running:
-                await self._quickSleeper(1 + attempt)
-                print("Retrying...")
-                await self.setupCrownstone(attempt + 1)
+                print(gt(), "----- Crownstone might have failed to setup... checking...", err)
 
 
     async def _getMacAddress(self):

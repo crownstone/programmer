@@ -4,7 +4,7 @@ import sys, os
 from ButtonWatcher.ButtonWatcher import ButtonWatcher
 from DisplayBoard.LedController import LedController
 from DisplayBoard.LedDriver import LedDriver
-import time, signal, subprocess
+import time, signal, subprocess, traceback
 from config import TEST_RUNNER_PATH
 
 from subprocess import Popen, PIPE
@@ -71,9 +71,10 @@ class ProggerStateManager:
             try:
                 print("ProggerStateManager: Waiting for tests to terminate...")
                 self.session.wait(3)
-                print("ProggerStateManager: Terminated.")
+                print("ProggerStateManager: Tests have been Terminated.")
             except:
-                print("ProggerStateManager: Forced to kill the tests....")
+                print("ProggerStateManager: Forced to kill the tests....",  sys.exc_info()[0])
+                traceback.print_exc()
                 if self.session is not None:
                     self.session.kill()
                 time.sleep(3)

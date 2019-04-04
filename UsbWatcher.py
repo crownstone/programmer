@@ -2,6 +2,7 @@ import sys, os
 from pathlib import Path
 import subprocess
 import time, signal
+import traceback
 
 from config import MOUNT_PATH, NAME_OF_USB_DONGLE, STATE_MANAGER_PATH
 
@@ -38,30 +39,35 @@ class ProggerManager:
 
 
     def runCode(self):
-        print("ProggerManager: Starting subprocess")
+        print("UsbWatcher: Starting subprocess")
         self.session = subprocess.Popen(["sudo", "python3", STATE_MANAGER_PATH], preexec_fn=os.setsid)
 
 
     def cleanup(self):
         # kill all processes. LED goes off. Button is ignored!
-        print("ProggerManager: Kill process")
+        print("UsbWatcher: Kill ProggerStateManager process")
         self.running = False
         if self.session is not None:
-            print("ProggerManager: Terminating session")
-            self.session.terminate()
+            print("UsbWatcher: Terminating ProggerStateManager")
             try:
-                print("ProggerManager: Waiting to terminate")
-                self.session.wait(5)
-                print("ProggerManager: Terminated.")
+                self.session.terminate()
             except:
-                print("ProggerManager: Terminate not successful. Killing now.")
+                print("UsbWatcher: Error terminating ProggerStateManager", sys.exc_info()[0])
+                traceback.print_exc()
+            try:
+                print("UsbWatcher: Waiting to terminate ProggerStateManager")
+                self.session.wait(5)
+                print("UsbWatcher: ProggerStateManager has been Terminated.")
+            except:
+                traceback.print_exc()
+                print("UsbWatcher: Terminate not successful. Killing ProggerStateManager now.", sys.exc_info()[0])
                 if self.session is not None:
                     self.session.kill()
                 time.sleep(3)
 
             self.session = None
         else:
-            print("ProggerManager: I dont have a session!")
+            print("UsbWatcher: I dont have a session!")
 
 
 theManager = ProggerManager()
@@ -87,12 +93,12 @@ while running:
     if codeUsbDongleConnected:
         codeUsbDongleConnected = measurement
         if not codeUsbDongleConnected:
-            print("triggering disconnect")
+            print("UsbWatcher: USB dongle has been disconnected. Closing child processes....")
             theManager.disconnectedCodeDrive()
     else:
         codeUsbDongleConnected = measurement
         if codeUsbDongleConnected:
-            print("triggering connect")
+            print("UsbWatcher: USB dongle has been Connected! Starting ProggerStateManager!")
             theManager.connectedCodeDrive()
         else:
             subprocess.Popen(["sudo", "mount", "-a"], preexec_fn=os.setsid)

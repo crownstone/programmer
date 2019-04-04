@@ -28,10 +28,18 @@ class LedDriver:
 
 
     def turnLedOn(self):
-        GPIO.output(GPIO_TO_PIN[BOARD_TO_GPIO["LED"]], GPIO.LOW)
+        try:
+            GPIO.output(GPIO_TO_PIN[BOARD_TO_GPIO["LED"]], GPIO.LOW)
+        except:
+            print("ERROR: Could not turn on LED")
+            quit()
 
     def turnLedOff(self):
-        GPIO.output(GPIO_TO_PIN[BOARD_TO_GPIO["LED"]], GPIO.HIGH)
+        try:
+            GPIO.output(GPIO_TO_PIN[BOARD_TO_GPIO["LED"]], GPIO.HIGH)
+        except:
+            print("ERROR: Could not turn off LED")
+            quit()
 
     def setLED(self, state):
         if state == True or state == 1:
