@@ -45,20 +45,20 @@ class ErrorCodes(Enum):
     E_TESTER_NOT_WORKING             = [1,2]
     E_COULD_NOT_PROGRAM              = [2,1]
     E_COULD_NOT_PROGRAM_3v3_TOO_LOW  = [2,2]
-    E_COULD_NOT_PROGRAM_NO_3V3       = [2,3]
-    E_COULD_NOT_PROGRAM_JLINK_FAILED = [2,4]
-    E_3V3_TOO_LOW                    = [2,5]
+    E_COULD_NOT_PROGRAM_JLINK_FAILED = [2,3]
+    E_3V3_TOO_LOW                    = [2,4]
     E_THERMAL_FUSE_BUST              = [3]
-    E_NOT_SEEN_IN_SETUP_MODE         = [4]
-    E_NO_BLE_SCAN_RECEIVED           = [5]
+    E_NO_BLE_SCAN_RECEIVED           = [4,1]
+    E_NOT_SEEN_IN_SETUP_MODE         = [4,2]
+    E_RSSI_TOO_LOW                   = [5]
     E_COULD_NOT_SETUP                = [6]
     E_RELAY_NOT_ON                   = [7,1]
     E_RELAY_NOT_OFF                  = [7,2]
     E_POWER_MEASUREMENT_NOT_WORKING  = [8]
-    E_CAN_NOT_TURN_ON_IGBTS          = [9,1]
-    E_IGBT_Q1_NOT_WORKING            = [9,2,1]
-    E_IGBT_Q2_NOT_WORKING            = [9,2,2]
-    E_IGBTS_NOT_WORKING              = [9,2,3]
+    E_IGBT_Q1_NOT_WORKING            = [9,1]
+    E_IGBT_Q2_NOT_WORKING            = [9,2]
+    E_IGBTS_NOT_WORKING              = [9,3]
+    E_CAN_NOT_TURN_ON_IGBTS          = [9,4]
 
 
 def gt():
@@ -146,12 +146,19 @@ class TestRunner:
             if await self.checkForSetupMode() is False:
                 return
 
+            if await self.getRssiAverage(-70) is False:
+                return
+
             await self.setupCrownstone()
 
             self.loadingRunner.setProgress(3 / 6)
 
             if await self.checkForNormalMode() is False:
                 return
+
+            if await self.getRssiAverage(-40) is False:
+                return
+
             if await self.checkIfLoadIsPowered(RELAY) is False:
                 return
             if await self.checkHighPowerState() is False:
@@ -159,11 +166,16 @@ class TestRunner:
 
             self.loadingRunner.setProgress(4 / 6)
 
+            # extra await to ensure the IGBT driver is charged.
+            await self._quickSleeper(2)
+
             self.relayOff()
             if await self.checkIfLoadIsNotPowered() is False:
                 return
             if await self.checkLowPowerState() is False:
                 return
+
+
             if await self.igbtsOn() is False:
                 return
             if await self.checkIfLoadIsPowered(IGBTs) is False:
@@ -233,6 +245,19 @@ class TestRunner:
         await self._quickSleeper(0.75)
 
 
+    async def getRssiAverage(self, threshold):
+        # kill test here if we need to stop.TestRunner.py
+        if not self.running:
+            return False
+
+        print(gt(), "----- Checking Crownstone RSSI...")
+        # BLE--> Check for advertisements in normal mode
+        average = self.bluenetBLE.getRssiAverage(self.macAddress, scanDuration=3)
+        print(gt(), "----- Crownstone RSSI is ", average, " with threshold", threshold)
+        if average < threshold:
+            await self.endInErrorCode(ErrorCodes.E_RSSI_TOO_LOW)
+            return False
+
     async def getMacAddress(self):
         # UART --> Ask for MAC address
         print(gt(), "----- Get MAC address...")
@@ -260,7 +285,7 @@ class TestRunner:
 
 
     async def checkForNormalMode(self):
-        # kill test here if we need to stop.
+        # kill test here if we need to stop.TestRunner.py
         if not self.running:
             return False
 

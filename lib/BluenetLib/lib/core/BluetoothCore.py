@@ -1,5 +1,6 @@
 from BluenetLib.lib.core.modules.Gatherer import Gatherer
 from BluenetLib.lib.core.modules.SetupChecker import SetupChecker
+from BluenetLib.lib.core.modules.RssiChecker import RssiChecker
 from BluenetLib.lib.core.modules.NormalModeChecker import NormalModeChecker
 from BluenetLib.lib.util.JsonFileStore import JsonFileStore
 
@@ -106,6 +107,18 @@ class BluetoothCore:
         BluenetEventBus.unsubscribe(subscriptionId)
 
         return checker.getResult()
+
+    def getRssiAverage(self, address, scanDuration=3):
+        # print("Checking if it is in normal mode, address", address)
+        checker = RssiChecker(address)
+        subscriptionId = BluenetEventBus.subscribe(Topics.advertisement, checker.handleAdvertisement)
+
+        self.ble.startScanning(scanDuration=scanDuration)
+
+        BluenetEventBus.unsubscribe(subscriptionId)
+
+        return checker.getResult()
+
 
     def getNearestCrownstone(self, rssiAtLeast=-100, scanDuration=3, returnFirstAcceptable=False, addressesToExclude=[]):
         return self._getNearest(False, rssiAtLeast, scanDuration, returnFirstAcceptable, False, addressesToExclude)

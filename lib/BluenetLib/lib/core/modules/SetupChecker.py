@@ -6,6 +6,7 @@ class SetupChecker:
 
     def __init__(self, address, waitUntilInRequiredMode=False):
         self.address = address
+        self.advertisement = None
         self.result = False
         self.waitUntilInRequiredMode = waitUntilInRequiredMode
 
@@ -17,6 +18,7 @@ class SetupChecker:
             return
 
         self.result = advertisement["serviceData"]["setupMode"]
+        self.advertisement = advertisement
 
         if not self.result and self.waitUntilInRequiredMode:
             pass
@@ -25,4 +27,7 @@ class SetupChecker:
 
     def getResult(self):
         return self.result
+
+    def getAdvertisement(self):
+        return self.advertisement
 
