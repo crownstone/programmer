@@ -6,7 +6,7 @@ from enum import IntEnum
 class UserLevel(IntEnum):
     admin   = 0
     member  = 1
-    guest   = 2
+    basic   = 2
     setup   = 100
     unknown = 255
 
@@ -14,12 +14,15 @@ class UserLevel(IntEnum):
 class BluenetSettings:
     
     def __init__(self):
-        self.encryptionEnabled = True
         self.adminKey = None
         self.memberKey = None
-        self.guestKey = None
+        self.basicKey = None
         self.setupKey = None
-        
+        self.serviceDataKey = None
+        self.localizationKey = None
+        self.meshApplicationKey = None
+        self.meshNetworkKey = None
+
         self.referenceId = None
         self.sessionNonce = None
         self.initializedKeys = False
@@ -27,13 +30,15 @@ class BluenetSettings:
         self.userLevel = UserLevel.unknown
 
 
-    def loadKeys(self, encryptionEnabled, adminKey, memberKey, guestKey, referenceId):
-        self.encryptionEnabled = encryptionEnabled
-        
+    def loadKeys(self, adminKey, memberKey, basicKey, serviceDataKey, localizationKey, meshApplicationKey, meshNetworkKey, referenceId):
         self.adminKey  = Conversion.ascii_or_hex_string_to_16_byte_array(adminKey)
         self.memberKey = Conversion.ascii_or_hex_string_to_16_byte_array(memberKey)
-        self.guestKey  = Conversion.ascii_or_hex_string_to_16_byte_array(guestKey)
-        
+        self.basicKey  = Conversion.ascii_or_hex_string_to_16_byte_array(basicKey)
+        self.serviceDataKey  = Conversion.ascii_or_hex_string_to_16_byte_array(serviceDataKey)
+        self.localizationKey  = Conversion.ascii_or_hex_string_to_16_byte_array(localizationKey)
+        self.meshApplicationKey = Conversion.ascii_or_hex_string_to_16_byte_array(meshApplicationKey)
+        self.meshNetworkKey  = Conversion.ascii_or_hex_string_to_16_byte_array(meshNetworkKey)
+
         self.referenceId = referenceId
         
         self.initializedKeys = True
@@ -45,8 +50,8 @@ class BluenetSettings:
             self.userLevel = UserLevel.admin
         elif len(self.memberKey) == 16:
             self.userLevel = UserLevel.member
-        elif len(self.guestKey)  == 16:
-            self.userLevel = UserLevel.guest
+        elif len(self.basicKey)  == 16:
+            self.userLevel = UserLevel.basic
         else:
             self.userLevel = UserLevel.unknown
             self.initializedKeys = False
@@ -85,7 +90,7 @@ class BluenetSettings:
     def isEncryptionEnabled(self):
         if self.temporaryDisable:
             return False
-        return self.encryptionEnabled
+        return True
 
 
 

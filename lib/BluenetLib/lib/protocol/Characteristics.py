@@ -23,6 +23,7 @@ class SetupCharacteristics:
     GoToDFU          = "24f10006-7d10-4805-bfc1-7663a01c3bff"
     SetupControl     = "24f10007-7d10-4805-bfc1-7663a01c3bff"
     SessionNonce     = "24f10008-7d10-4805-bfc1-7663a01c3bff"
+    SetupControlV2   = "24f10009-7d10-4805-bfc1-7663a01c3bff"
 
 
 

@@ -89,14 +89,20 @@ class CloudSphereHandler(CloudBase):
     
 
     def getKeys(self):
-        r = requests.get('https://my.crownstone.rocks/api/users/' + self.userId + '/keys?access_token=' + self.accessToken)
+        r = requests.get('https://my.crownstone.rocks/api/users/' + self.userId + '/keysV2?access_token=' + self.accessToken)
     
         if r.status_code == 200:
             reply = r.json()
-        
+
+            keyDict = {}
+
             for keySet in reply:
                 if keySet["sphereId"] == self.sphereId:
-                    return keySet["keys"]
+                    for keyData in keySet["sphereKeys"]:
+                        if keyData["ttl"] == 0:
+                            keyDict[keyData["keyType"]] = keyData["key"]
+
+                    return keyDict
         else:
             print(r.text)
             print("Could not get keys")

@@ -114,7 +114,25 @@ class BleHandler:
         data = targetCharacteristic.read()
         return data
 
-    
+
+
+    def getCharacteristics(self, serviceUUID):
+        if self.connectedPeripheral:
+            peripheral = self.connectedPeripherals[self.connectedPeripheral]
+
+            try:
+                service = peripheral.getServiceByUUID(serviceUUID)
+            except BTLEException:
+                raise BluenetBleException(BleError.CAN_NOT_FIND_SERVICE, "Can not find service: " + serviceUUID)
+
+            characteristics = service.getCharacteristics()
+
+            return characteristics
+
+        else:
+            raise BluenetBleException(BleError.CAN_NOT_GET_CHACTERISTIC, "Can't get characteristics: Not connected.")
+
+
     def getCharacteristic(self, serviceUUID, characteristicUUID):
         if self.connectedPeripheral:
             peripheral = self.connectedPeripherals[self.connectedPeripheral]

@@ -1,17 +1,6 @@
 import RPi.GPIO as GPIO
 
-
-BOARD_TO_GPIO = {
-    "LED":6
-}
-
-# map of gpio to pins
-GPIO_TO_PIN = {
-    6: 31,
-}
-
-# get array of pins
-LED_PIN = GPIO_TO_PIN[BOARD_TO_GPIO["LED"]]
+from getPinLayout import LED_PIN
 
 
 class LedDriver:
@@ -24,19 +13,19 @@ class LedDriver:
         GPIO.setup(LED_PIN, GPIO.OUT)
 
     def cleanup(self):
-        GPIO.cleanup(GPIO_TO_PIN[BOARD_TO_GPIO["LED"]])
+        GPIO.cleanup(LED_PIN)
 
 
     def turnLedOn(self):
         try:
-            GPIO.output(GPIO_TO_PIN[BOARD_TO_GPIO["LED"]], GPIO.LOW)
+            GPIO.output(LED_PIN, GPIO.LOW)
         except:
             print("ERROR: Could not turn on LED")
             quit()
 
     def turnLedOff(self):
         try:
-            GPIO.output(GPIO_TO_PIN[BOARD_TO_GPIO["LED"]], GPIO.HIGH)
+            GPIO.output(LED_PIN, GPIO.HIGH)
         except:
             print("ERROR: Could not turn off LED")
             quit()

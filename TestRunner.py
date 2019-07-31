@@ -235,7 +235,15 @@ class TestRunner:
 
         print(gt(), "----- Initializing Bluenet Libraries")
         self.bluenetBLE = BluenetBle(hciIndex=findUsbBleDongleHciIndex())
-        self.bluenetBLE.setSettings("adminKeyForCrown", "memberKeyForHome", "guestKeyForOther")
+        self.bluenetBLE.setSettings(
+            adminKey=           "adminKeyForCrown",
+            memberKey=          "memberKeyForHome",
+            basicKey=           "guestKeyForOther",
+            serviceDataKey=     "guestKeyForOther",
+            localizationKey=    "localizationKeyX",
+            meshApplicationKey= "meshKeyForStones",
+            meshNetworkKey=     "meshAppForStones",
+        )
 
 
     async def enableUart(self):
@@ -448,8 +456,10 @@ class TestRunner:
             # BLE --> BLE fast setup --> THIS TURNS THE RELAY ON AUTOMATICALLY
             self.bluenetBLE.setupCrownstone(
                 self.macAddress,
+                sphereId=5,
                 crownstoneId=1,
                 meshAccessAddress=Util.generateMeshAccessAddress(),
+                meshDeviceKey="itsMyDeviceKeyyy",
                 ibeaconUUID="1843423e-e175-4af0-a2e4-31e32f729a8a",
                 ibeaconMajor=123,
                 ibeaconMinor=456

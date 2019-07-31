@@ -140,13 +140,13 @@ class ControlPacketsGenerator:
 
 	
 	@staticmethod
-	def getSetupPacket(commandType, crownstoneId, adminKey, memberKey, guestKey, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor):
+	def getSetupPacket(commandType, crownstoneId, adminKey, memberKey, basicKey, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor):
 		"""
 		:param commandType:      	uint8 number
 		:param crownstoneId:  		uint8 number
 		:param adminKey:      		byteString (no conversion required)
 		:param memberKey:     		byteString (no conversion required)
-		:param guestKey:      		byteString (no conversion required)
+		:param basicKey:      		byteString (no conversion required)
 		:param meshAccessAddress: 	hexstring
 		:param ibeaconUUID: 		string  (ie. "1843423e-e175-4af0-a2e4-31e32f729a8a")
 		:param ibeaconMajor:        uint16 number
@@ -156,10 +156,10 @@ class ControlPacketsGenerator:
 		data = []
 		data.append(commandType)
 		data.append(crownstoneId)
-		
+
 		data += list(adminKey)
 		data += list(memberKey)
-		data += list(guestKey)
+		data += list(basicKey)
 
 		if type(meshAccessAddress) is str:
 			data += Conversion.hex_string_to_uint8_array(meshAccessAddress)
@@ -171,4 +171,57 @@ class ControlPacketsGenerator:
 		data += Conversion.uint16_to_uint8_array(ibeaconMinor)
 
 		return ControlPacket(ControlType.SETUP).loadByteArray(data).getPacket()
+
+
+	@staticmethod
+	def getSetupPacketV2(
+			crownstoneId,
+			sphereId,
+			adminKey,
+			memberKey,
+			basicKey,
+			serviceDataKey,
+			localizationKey,
+			meshDeviceKey,
+			meshAppKey,
+			meshNetworkKey,
+			ibeaconUUID,
+			ibeaconMajor,
+			ibeaconMinor
+	):
+		"""
+		:param crownstoneId:  		uint8 number
+		:param sphereId:  	     	uint8 number
+		:param adminKey:      		byteString (no conversion required)
+		:param memberKey:     		byteString (no conversion required)
+		:param basicKey:      		byteString (no conversion required)
+		:param serviceDataKey: 	    byteString (no conversion required)
+		:param localizationKey: 	byteString (no conversion required)
+		:param meshDeviceKey: 	    byteString (no conversion required)
+		:param meshAppKey: 	        byteString (no conversion required)
+		:param meshNetworkKey: 	    byteString (no conversion required)
+		:param ibeaconUUID: 		string  (ie. "1843423e-e175-4af0-a2e4-31e32f729a8a")
+		:param ibeaconMajor:        uint16 number
+		:param ibeaconMinor:        uint16 number
+		:return:
+		"""
+		data = []
+		data.append(crownstoneId)
+		data.append(sphereId)
+
+		data += list(adminKey)
+		data += list(memberKey)
+		data += list(basicKey)
+		data += list(serviceDataKey)
+		data += list(localizationKey)
+		data += list(meshDeviceKey)
+		data += list(meshAppKey)
+		data += list(meshNetworkKey)
+
+		data += Conversion.ibeaconUUIDString_to_reversed_uint8_array(ibeaconUUID)
+		data += Conversion.uint16_to_uint8_array(ibeaconMajor)
+		data += Conversion.uint16_to_uint8_array(ibeaconMinor)
+
+		return ControlPacket(ControlType.SETUP).loadByteArray(data).getPacket()
+
 

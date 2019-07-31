@@ -13,7 +13,7 @@ class ControlHandler:
         rawNonce = self.core.ble.readCharacteristicWithoutEncryption(CSServices.CrownstoneService, CrownstoneCharacteristics.SessionNonce)
         
         # decrypt it
-        decryptedNonce = EncryptionHandler.decryptSessionNonce(rawNonce, self.core.settings.guestKey)
+        decryptedNonce = EncryptionHandler.decryptSessionNonce(rawNonce, self.core.settings.basicKey)
         
         # load into the settings object
         self.core.settings.setSessionNonce(decryptedNonce)

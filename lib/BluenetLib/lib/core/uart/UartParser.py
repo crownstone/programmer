@@ -26,7 +26,7 @@ class UartParser:
     def parse(self, dataPacket):
         opCode = dataPacket.opCode
         parsedData = None
-        # print("UART - opCode:", opCode, "payload:", dataPacket.payload)
+#        print("UART - opCode:", opCode, "payload:", dataPacket.payload)
 
         if opCode == UartRxType.MESH_STATE_0 or opCode == UartRxType.MESH_STATE_1:
             # unpack the mesh packet

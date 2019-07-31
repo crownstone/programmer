@@ -19,33 +19,7 @@ import time,random
 #                       -- ----------- --
 #                         |     B     |
 #                          -----------
-
-BOARD_TO_GPIO = {
-    "T":  16,
-    "LT": 20,
-    "RT": 21,
-    "M":  19,
-    "LB": 13,
-    "RB": 12,
-    "B":  5,
-}
-
-# map of gpio to pins
-GPIO_TO_PIN = {
-    5: 29,
-    12: 32,
-    13: 33,
-    16: 36,
-    19: 35,
-    20: 38,
-    21: 40,
-}
-
-# get array of pins
-DISPLAY_BOARD_OUTPUT_PINS = []
-for gpio in GPIO_TO_PIN:
-    DISPLAY_BOARD_OUTPUT_PINS.append(GPIO_TO_PIN[gpio])
-
+from getPinLayout import DISPLAY_BOARD_OUTPUT_PINS, GPIO_TO_PIN, BOARD_TO_GPIO
 
 
 class DisplayDriver:

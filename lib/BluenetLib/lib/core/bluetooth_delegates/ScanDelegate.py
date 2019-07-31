@@ -22,8 +22,11 @@ class ScanDelegate(DefaultDelegate):
           
     def parsePayload(self, address, rssi, nameText, valueText):
         advertisement = Advertisement(address, rssi, nameText, valueText)
-        if self.settings.encryptionEnabled:
-            advertisement.decrypt(self.settings.guestKey)
-            
+
+        if advertisement.serviceData.opCode <= 5:
+            advertisement.decrypt(self.settings.basicKey)
+        elif advertisement.serviceData.opCode >= 7:
+            advertisement.decrypt(self.settings.serviceDataKey)
+
         if advertisement.isCrownstoneFamily():
             BluenetEventBus.emit(SystemBleTopics.rawAdvertisement, advertisement)

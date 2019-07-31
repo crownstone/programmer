@@ -77,7 +77,7 @@ class ConfigurationType(IntEnum):
     CROWNSTONE_IDENTIFIER   = 34
     ADMIN_ENCRYPTION_KEY    = 35
     MEMBER_ENCRYPTION_KEY   = 36
-    GUEST_ENCRYPTION_KEY    = 37
+    BASIC_ENCRYPTION_KEY    = 37
     DEFAULT_ON              = 38
     SCAN_INTERVAL           = 39
     SCAN_WINDOW             = 40
@@ -147,6 +147,7 @@ class DeviceType(IntEnum):
     GUIDESTONE = 2
     BUILTIN = 3
     CROWNSTONE_USB = 4
+    BUILTIN_ONE = 5
 
     @classmethod
     def has_value(cls, value):

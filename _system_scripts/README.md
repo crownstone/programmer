@@ -7,8 +7,18 @@ Assuming a blank lite image from raspbian:
         ```
         LABEL=PROGGERCODE       /media/programmer_code_dongle      vfat    defaults,noatime,nofail,ro      0       0
         ```
-    - reboot
+   
     
+- set the environment variable to match the pin layout of your progger:
+    - go the /etc/environment and add this line:
+        ```
+        PROGGER_PIN_LAYOUT_VERSION="2"
+
+        ```
+    - Set the 2 to the matching number. You can find the supported maps in repo/lib/GpioMap
+    
+    
+- reboot
     
 - insert the USB drive and run 
     ```

@@ -1,7 +1,7 @@
 from BluenetLib.lib.core.modules.Gatherer import Gatherer
-from BluenetLib.lib.core.modules.SetupChecker import SetupChecker
-from BluenetLib.lib.core.modules.RssiChecker import RssiChecker
 from BluenetLib.lib.core.modules.NormalModeChecker import NormalModeChecker
+from BluenetLib.lib.core.modules.RssiChecker import RssiChecker
+from BluenetLib.lib.core.modules.SetupChecker import SetupChecker
 from BluenetLib.lib.util.JsonFileStore import JsonFileStore
 
 from BluenetLib.Exceptions import BleError, BluenetError, BluenetBleException, BluenetException
@@ -29,8 +29,8 @@ class BluetoothCore:
     def shutDown(self):
         self.ble.shutDown()
     
-    def setSettings(self, adminKey, memberKey, guestKey, referenceId = "PythonLib", encryptionEnabled=True):
-        self.settings.loadKeys(encryptionEnabled, adminKey, memberKey, guestKey, referenceId)
+    def setSettings(self, adminKey, memberKey, basicKey, serviceDataKey, localizationKey, meshApplicationKey, meshNetworkKey, referenceId = "PythonLib"):
+        self.settings.loadKeys(adminKey, memberKey, basicKey, serviceDataKey, localizationKey, meshApplicationKey, meshNetworkKey, referenceId)
         
         
     def loadSettingsFromFile(self, path):
@@ -41,26 +41,33 @@ class BluetoothCore:
             raise BluenetBleException(BluenetError.ADMIN_KEY_REQURED)
         if "member" not in data:
             raise BluenetBleException(BluenetError.MEMBER_KEY_REQUIRED)
-        if "guest" not in data:
-            raise BluenetBleException(BluenetError.GUEST_KEY_REQURED)
-        
-        self.setSettings(data["admin"], data["member"], data["guest"])
+        if "basic" not in data:
+            raise BluenetBleException(BluenetError.BASIC_KEY_REQURED)
+        if "serviceDataKey" not in data:
+            raise BluenetBleException(BluenetError.SERVICE_DATA_KEY_REQUIRED)
+        if "localizationKey" not in data:
+            raise BluenetBleException(BluenetError.LOCALIZATION_KEY_REQUIRED)
+        if "meshApplicationKey" not in data:
+            raise BluenetBleException(BluenetError.MESH_APP_KEY)
+        if "meshNetworkKey" not in data:
+            raise BluenetBleException(BluenetError.MESH_NETWORK_KEY)
+
+        self.setSettings(data["admin"], data["member"], data["basic"], data["serviceDataKey"], data["localizationKey"], data["meshApplicationKey"], data["meshNetworkKey"])
         
 
     def connect(self, address):
         self.ble.connect(address)
-        if self.settings.encryptionEnabled:
-            try:
-                self.control.getAndSetSessionNone()
-            except BluenetBleException as err:
-                # the only relevant error here is this one. If it is any other, the Crownstone is in the wrong mode
-                if err.type is BleError.COULD_NOT_VALIDATE_SESSION_NONCE:
-                    raise err
+        try:
+            self.control.getAndSetSessionNone()
+        except BluenetBleException as err:
+            # the only relevant error here is this one. If it is any other, the Crownstone is in the wrong mode
+            if err.type is BleError.COULD_NOT_VALIDATE_SESSION_NONCE:
+                raise err
 
 
-    def setupCrownstone(self, address, crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor):
+    def setupCrownstone(self, address, sphereId, crownstoneId, meshAccessAddress, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor):
         self.connect(address)
-        self.setup.setup(crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor)
+        self.setup.setup(sphereId, crownstoneId, meshAccessAddress, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor)
         self.disconnect()
         
     
@@ -85,14 +92,14 @@ class BluetoothCore:
         BluenetEventBus.unsubscribe(subscriptionIdAll)
         
         return gatherer.getCollection()
-    
+
     def isCrownstoneInSetupMode(self, address, scanDuration=3, waitUntilInRequiredMode=False):
         # print("Checking if it is in setup mode, address", address)
         checker = SetupChecker(address, waitUntilInRequiredMode)
         subscriptionId = BluenetEventBus.subscribe(Topics.advertisement, checker.handleAdvertisement)
 
         self.ble.startScanning(scanDuration=scanDuration)
-        
+
         BluenetEventBus.unsubscribe(subscriptionId)
 
         return checker.getResult()
@@ -118,7 +125,6 @@ class BluetoothCore:
         BluenetEventBus.unsubscribe(subscriptionId)
 
         return checker.getResult()
-
 
     def getNearestCrownstone(self, rssiAtLeast=-100, scanDuration=3, returnFirstAcceptable=False, addressesToExclude=[]):
         return self._getNearest(False, rssiAtLeast, scanDuration, returnFirstAcceptable, False, addressesToExclude)

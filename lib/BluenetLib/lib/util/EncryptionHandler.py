@@ -229,8 +229,8 @@ class EncryptionHandler:
             key = settings.adminKey
         elif userLevel == UserLevel.member:
             key = settings.memberKey
-        elif userLevel == UserLevel.guest:
-            key = settings.guestKey
+        elif userLevel == UserLevel.basic:
+            key = settings.basicKey
         elif userLevel == UserLevel.setup:
             key = settings.setupKey
         else:

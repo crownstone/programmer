@@ -54,7 +54,7 @@ class ServiceData:
             self.opCode = self.data[0]
             self.encryptedData = self.data[2:]
             self.encryptedDataStartIndex = 2
-            if self.opCode == 5:
+            if self.opCode == 5 or self.opCode == 7:
                 parseOpCode5(self, self.data)
             elif self.opCode == 6:
                 parseOpCode6(self, self.data)
@@ -73,8 +73,8 @@ class ServiceData:
                 parseOpCode3(self, self.data)
         else:
             self.validData = False
-
-
+            
+        
 
     def isInSetupMode(self):
         if not self.validData:

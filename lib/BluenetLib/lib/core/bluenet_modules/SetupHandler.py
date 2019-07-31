@@ -17,8 +17,19 @@ class SetupHandler:
     def __init__(self, bluetoothCore):
         self.core = bluetoothCore
 
-    def setup(self, crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor):
-        characteristic = None
+    def setup(self, sphereId, crownstoneId, meshAccessAddress, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor):
+        characteristics = self.core.ble.getCharacteristics(CSServices.SetupService)
+        if SetupCharacteristics.SetupControlV2 in characteristics:
+            print("BluenetBLE: Fast Setup V2 is supported. Performing..")
+            self.fastSetupV2(sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor)
+        elif SetupCharacteristics.SetupControl in characteristics:
+            print("BluenetBLE: Fast Setup is supported. Performing..")
+            self.fastSetup(crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor)
+        else:
+            print("BluenetBLE: Fast Setup is NOT supported. Performing classic setup..")
+            self.classicSetup(crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor)
+
+
         try:
             characteristic = self.core.ble.getCharacteristic(CSServices.SetupService, SetupCharacteristics.SetupControl)
             print("BluenetBLE: Fast Setup is supported. Performing..")
@@ -28,9 +39,25 @@ class SetupHandler:
             self.classicSetup(crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor)
             
         
+    def fastSetupV2(self, sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor):
+        if not self.core.settings.initializedKeys:
+            raise BluenetBleException(BleError.NO_ENCRYPTION_KEYS_SET, "Keys are not initialized so I can't put anything on the Crownstone. Make sure you call .setSettings(adminKey, memberKey, basicKey, serviceDataKey, localizationKey, meshApplicationKey, meshNetworkKey")
+
+        self.handleSetupPhaseEncryption()
+        self.core.ble.setupNotificationStream(
+            CSServices.SetupService,
+            SetupCharacteristics.SetupControl,
+            lambda: self._writeFastSetupV2(sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor),
+            lambda notificationResult: self._handleResult(notificationResult),
+            5
+        )
+        print("BluenetBLE: Closing Setup V2.")
+        self.core.settings.exitSetup()
+
+
     def fastSetup(self, crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor):
         if not self.core.settings.initializedKeys:
-            raise BluenetBleException(BleError.NO_ENCRYPTION_KEYS_SET, "Keys are not initialized so I can't put anything on the Crownstone. Make sure you call .setSettings(True, adminKey, memberKey, guesKey")
+            raise BluenetBleException(BleError.NO_ENCRYPTION_KEYS_SET, "Keys are not initialized so I can't put anything on the Crownstone. Make sure you call .setSettings(adminKey, memberKey, basicKey, serviceDataKey, localizationKey, meshApplicationKey, meshNetworkKey")
 
         self.handleSetupPhaseEncryption()
         self.core.ble.setupNotificationStream(
@@ -42,14 +69,35 @@ class SetupHandler:
         )
         print("BluenetBLE: Closing Setup.")
         self.core.settings.exitSetup()
-    
+
+
+    def _writeFastSetupV2(self, sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor):
+        packet = ControlPacketsGenerator.getSetupPacketV2(
+            crownstoneId,
+            sphereId,
+            self.core.settings.adminKey,
+            self.core.settings.memberKey,
+            self.core.settings.basicKey,
+            self.core.settings.serviceDataKey,
+            self.core.settings.localizationKey,
+            meshDeviceKey,
+            self.core.settings.meshApplicationKey,
+            self.core.settings.meshNetworkKey,
+            ibeaconUUID,
+            ibeaconMajor,
+            ibeaconMinor
+        )
+
+        print("BluenetBLE: Writing setup data to Crownstone...")
+        self.core.ble.writeToCharacteristic(CSServices.SetupService, SetupCharacteristics.SetupControl, packet)
+
     def _writeFastSetup(self, crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor):
         packet = ControlPacketsGenerator.getSetupPacket(
             0,
             crownstoneId,
             self.core.settings.adminKey,
             self.core.settings.memberKey,
-            self.core.settings.guestKey,
+            self.core.settings.basicKey,
             meshAccessAddress,
             ibeaconUUID,
             ibeaconMajor,
@@ -62,7 +110,6 @@ class SetupHandler:
     
     def _handleResult(self, result):
         response = ResultPacket(result)
-        print("BluenetBLE: Handling setup result:", result)
         if response.valid:
             payload = response.getUInt16Payload()
             if payload == ResultValue.WAIT_FOR_SUCCESS:
@@ -72,7 +119,7 @@ class SetupHandler:
                 print("BluenetBLE: Data stored...")
                 return ProcessType.FINISHED
             else:
-                print("BluenetBLE: Unexpected notification data. Aborting...", payload)
+                print("BluenetBLE: Unexpected notification data. Aborting...")
                 return ProcessType.ABORT_ERROR
         else:
             print("BluenetBLE: Invalid notification data. Aborting...")
@@ -96,8 +143,8 @@ class SetupHandler:
             print("BluenetBLE: Setting Member Key...")
             self.writeMemberKey(self.core.settings.memberKey)
             time.sleep(sleepTime)
-            print("BluenetBLE: Setting Guest Key...")
-            self.writeGuestKey(self.core.settings.guestKey)
+            print("BluenetBLE: Setting Basic Key...")
+            self.writeBasicKey(self.core.settings.basicKey)
             time.sleep(sleepTime)
             print("BluenetBLE: Setting Crownstone ID...")
             self.writeCrownstoneId(crownstoneId)
@@ -152,10 +199,10 @@ class SetupHandler:
                 .loadByteArray(memberKey)
                 .getPacket())
 
-    def writeGuestKey(self, guestKey):
+    def writeBasicKey(self, basicKey):
         self._writeConfigPacket(
-            WriteConfigPacket(ConfigurationType.GUEST_ENCRYPTION_KEY)
-                .loadByteArray(guestKey)
+            WriteConfigPacket(ConfigurationType.BASIC_ENCRYPTION_KEY)
+                .loadByteArray(basicKey)
                 .getPacket())
 
     def writeMeshAccessAddress(self, meshAccessAddress):

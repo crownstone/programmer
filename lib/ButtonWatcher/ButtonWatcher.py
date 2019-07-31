@@ -2,17 +2,7 @@ import asyncio, sys, signal
 from threading import Timer
 import RPi.GPIO as GPIO
 
-
-BOARD_TO_GPIO = {
-    "BUTTON": 4,
-    "LID":    24,
-}
-
-# map of gpio to pins
-GPIO_TO_PIN = {
-    4:  7,
-    24: 18,
-}
+from getPinLayout import GPIO_TO_PIN, BOARD_TO_GPIO
 
 
 class ButtonWatcher:
