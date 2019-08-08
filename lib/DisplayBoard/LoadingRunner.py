@@ -15,7 +15,8 @@ class LoadingRunner:
 
         self.board = DisplayDriver()
 
-
+    def __del__(self):
+        self.stop()
 
     def setProgress(self, progress):
         """
@@ -53,7 +54,7 @@ class LoadingRunner:
                 "RT",
                 "RB",
                 "B",
-            ], delay=0.03, loops=1)
+            ], delay=0.04, loops=1)
 
             self.board.clearPersistedSlots()
             if self.progress >= 1/6:

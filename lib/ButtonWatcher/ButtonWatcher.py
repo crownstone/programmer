@@ -1,8 +1,8 @@
-import asyncio, sys, signal
+import asyncio, signal
 from threading import Timer
 import RPi.GPIO as GPIO
 
-from getPinLayout import GPIO_TO_PIN, BOARD_TO_GPIO
+from getPinLayout import GPIO_TO_PIN, BOARD_TO_GPIO, GET_LID_OPEN_FROM_GPIO
 
 
 class ButtonWatcher:
@@ -23,6 +23,9 @@ class ButtonWatcher:
         if catchSignal:
             signal.signal(signal.SIGINT, self._end)
             signal.signal(signal.SIGTERM, self._end)
+
+    def __del__(self):
+        self._end()
 
     def _end(self, source=None, frame=None):
         self.stop()
@@ -65,7 +68,7 @@ class ButtonWatcher:
 
     async def checkButtonStates(self):
         self.buttonState = not GPIO.input(self.buttonPin)
-        self.lidClosed = GPIO.input(self.lidPin) == 1
+        self.lidClosed = GET_LID_OPEN_FROM_GPIO(GPIO.input(self.lidPin))
         await asyncio.sleep(0.1)
 
 

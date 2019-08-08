@@ -7,6 +7,9 @@ class LedDriver:
     def __init__(self):
         pass
 
+    def __del__(self):
+        self.cleanup()
+
     def start(self):
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BOARD)

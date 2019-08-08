@@ -17,12 +17,19 @@ class SetupHandler:
     def __init__(self, bluetoothCore):
         self.core = bluetoothCore
 
+    def hasCharacteristic(self, characteristics, uuid):
+        for char in characteristics:
+            if char.uuid == uuid:
+                return True
+        return False
+
     def setup(self, sphereId, crownstoneId, meshAccessAddress, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor):
         characteristics = self.core.ble.getCharacteristics(CSServices.SetupService)
-        if SetupCharacteristics.SetupControlV2 in characteristics:
+
+        if self.hasCharacteristic(characteristics, SetupCharacteristics.SetupControlV2):
             print("BluenetBLE: Fast Setup V2 is supported. Performing..")
             self.fastSetupV2(sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor)
-        elif SetupCharacteristics.SetupControl in characteristics:
+        elif self.hasCharacteristic(characteristics, SetupCharacteristics.SetupControl):
             print("BluenetBLE: Fast Setup is supported. Performing..")
             self.fastSetup(crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor)
         else:
@@ -30,15 +37,6 @@ class SetupHandler:
             self.classicSetup(crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor)
 
 
-        try:
-            characteristic = self.core.ble.getCharacteristic(CSServices.SetupService, SetupCharacteristics.SetupControl)
-            print("BluenetBLE: Fast Setup is supported. Performing..")
-            self.fastSetup(crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor)
-        except BluenetBleException as err:
-            print("BluenetBLE: Fast Setup is NOT supported. Performing classic setup..")
-            self.classicSetup(crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor)
-            
-        
     def fastSetupV2(self, sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor):
         if not self.core.settings.initializedKeys:
             raise BluenetBleException(BleError.NO_ENCRYPTION_KEYS_SET, "Keys are not initialized so I can't put anything on the Crownstone. Make sure you call .setSettings(adminKey, memberKey, basicKey, serviceDataKey, localizationKey, meshApplicationKey, meshNetworkKey")
@@ -46,7 +44,7 @@ class SetupHandler:
         self.handleSetupPhaseEncryption()
         self.core.ble.setupNotificationStream(
             CSServices.SetupService,
-            SetupCharacteristics.SetupControl,
+            SetupCharacteristics.SetupControlV2,
             lambda: self._writeFastSetupV2(sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor),
             lambda notificationResult: self._handleResult(notificationResult),
             5
@@ -89,7 +87,7 @@ class SetupHandler:
         )
 
         print("BluenetBLE: Writing setup data to Crownstone...")
-        self.core.ble.writeToCharacteristic(CSServices.SetupService, SetupCharacteristics.SetupControl, packet)
+        self.core.ble.writeToCharacteristic(CSServices.SetupService, SetupCharacteristics.SetupControlV2, packet)
 
     def _writeFastSetup(self, crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor):
         packet = ControlPacketsGenerator.getSetupPacket(

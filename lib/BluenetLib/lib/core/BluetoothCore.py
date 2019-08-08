@@ -116,7 +116,6 @@ class BluetoothCore:
         return checker.getResult()
 
     def getRssiAverage(self, address, scanDuration=3):
-        # print("Checking if it is in normal mode, address", address)
         checker = RssiChecker(address)
         subscriptionId = BluenetEventBus.subscribe(Topics.advertisement, checker.handleAdvertisement)
 

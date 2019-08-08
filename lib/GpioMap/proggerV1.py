@@ -64,3 +64,4 @@ for gpio in displayGpio:
 # get array of pins
 p_LED_PIN = p_GPIO_TO_PIN[p_BOARD_TO_GPIO["LED"]]
 
+p_GET_LID_OPEN_FROM_GPIO = lambda x : x

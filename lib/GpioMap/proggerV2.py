@@ -26,8 +26,8 @@ displayGpio = {
 
 p_BOARD_TO_GPIO = {
     "T": 24,
-    "RT": 25,
-    "LT": 23,
+    "RT": 23,
+    "LT": 25,
     "M": 26,
     "RB": 20,
     "LB": 22,
@@ -38,7 +38,7 @@ p_BOARD_TO_GPIO = {
     "LED": 18,
 
     "INPUT_1": 6,
-    "INPUT_2": 7,
+    "INPUT_2": 17,
 }
 
 
@@ -53,6 +53,7 @@ p_GPIO_TO_PIN = {
     12: 32,
     13: 33,
     16: 36,
+    17: 11,
     18: 12,
     19: 35,
     20: 38,
@@ -69,9 +70,7 @@ p_DISPLAY_BOARD_OUTPUT_PINS = []
 for gpio in displayGpio:
     p_DISPLAY_BOARD_OUTPUT_PINS.append(p_GPIO_TO_PIN[p_BOARD_TO_GPIO[gpio]])
 
-print(p_DISPLAY_BOARD_OUTPUT_PINS)
-
-
 # get array of pins
 p_LED_PIN = p_GPIO_TO_PIN[p_BOARD_TO_GPIO["LED"]]
 
+p_GET_LID_OPEN_FROM_GPIO = lambda x : not x

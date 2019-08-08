@@ -1,6 +1,6 @@
 from util import path
 
-import signal,time, asyncio, sys
+import signal,time, asyncio, sys, random
 
 # if this script is running, the button has been pressed
 
@@ -38,6 +38,8 @@ from vendor.bluepy.btle import BTLEException
 
 IGBTs = 1
 RELAY = 2
+
+TESTING_CROWNSTONE_ID = random.randint(1,250)
 
 class ErrorCodes(Enum):
     E_NO_UART_RESTART_TEST           = [0]
@@ -146,7 +148,7 @@ class TestRunner:
             if await self.checkForSetupMode() is False:
                 return
 
-            if await self.getRssiAverage(-70) is False:
+            if await self.getRssiAverage(-40) is False:
                 return
 
             await self.setupCrownstone()
@@ -260,7 +262,11 @@ class TestRunner:
 
         print(gt(), "----- Checking Crownstone RSSI...")
         # BLE--> Check for advertisements in normal mode
-        average = self.bluenetBLE.getRssiAverage(self.macAddress, scanDuration=3)
+        average = self.bluenetBLE.getRssiAverage(self.macAddress, scanDuration=4)
+        if average is None:
+            await self.endInErrorCode(ErrorCodes.E_NO_BLE_SCAN_RECEIVED)
+            return False
+
         print(gt(), "----- Crownstone RSSI is ", average, " with threshold", threshold)
         if average < threshold:
             await self.endInErrorCode(ErrorCodes.E_RSSI_TOO_LOW)
@@ -456,8 +462,8 @@ class TestRunner:
             # BLE --> BLE fast setup --> THIS TURNS THE RELAY ON AUTOMATICALLY
             self.bluenetBLE.setupCrownstone(
                 self.macAddress,
-                sphereId=5,
-                crownstoneId=1,
+                sphereId=1,
+                crownstoneId=TESTING_CROWNSTONE_ID,
                 meshAccessAddress=Util.generateMeshAccessAddress(),
                 meshDeviceKey="itsMyDeviceKeyyy",
                 ibeaconUUID="1843423e-e175-4af0-a2e4-31e32f729a8a",
@@ -494,7 +500,7 @@ class TestRunner:
         result = [True, None, None]
         def handleMessage(container, data):
             # check to ensure its this crownstone, not a mesh stone if there are multiple proggers
-            if data["id"] == 1:
+            if data["id"] == TESTING_CROWNSTONE_ID:
                 # container[1] = (data["powerUsageReal"],data["powerUsageApparent"],data["powerFactor"])
                 container[1] = data["powerUsageReal"]
                 container[2] = data["switchState"]

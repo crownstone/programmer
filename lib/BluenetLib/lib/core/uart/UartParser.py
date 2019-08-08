@@ -92,7 +92,8 @@ class UartParser:
         elif opCode == UartRxType.ASCII_LOG:
             stringResult = ""
             for byte in dataPacket.payload:
-                stringResult += chr(byte)
+                if byte < 128:
+                    stringResult += chr(byte)
             logStr = "LOG: %15.3f - %s" % (time.time(), stringResult)
             sys.stdout.write(logStr)
         elif opCode == UartRxType.UART_MESSAGE:

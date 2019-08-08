@@ -23,6 +23,8 @@ class LedController:
         self.loop        = asyncio.new_event_loop()
         self.closingLoop = asyncio.new_event_loop()
 
+    def __del__(self):
+        self.stop()
 
     def off(self):
         self.led.turnLedOff()

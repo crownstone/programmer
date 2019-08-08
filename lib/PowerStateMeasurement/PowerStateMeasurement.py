@@ -1,17 +1,7 @@
 import time
 import RPi.GPIO as GPIO
 
-
-BOARD_TO_GPIO = {
-    "INPUT_1": 22,
-    "INPUT_2": 23,
-}
-
-# map of gpio to pins
-GPIO_TO_PIN = {
-    22: 15,
-    23: 16,
-}
+from getPinLayout import GPIO_TO_PIN, BOARD_TO_GPIO
 
 
 class PowerStateMeasurement:

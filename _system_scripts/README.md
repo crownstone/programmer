@@ -9,12 +9,11 @@ Assuming a blank lite image from raspbian:
         ```
    
     
-- set the environment variable to match the pin layout of your progger:
-    - go the /etc/environment and add this line:
-        ```
-        PROGGER_PIN_LAYOUT_VERSION="2"
-
-        ```
+- set the config file to get the pin layout of your progger:
+    ```
+    echo 2 > ~/programmer_pin_version
+    ```
+   
     - Set the 2 to the matching number. You can find the supported maps in repo/lib/GpioMap
     
     

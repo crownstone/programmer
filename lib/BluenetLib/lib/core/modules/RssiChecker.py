@@ -19,6 +19,9 @@ class RssiChecker:
 
 
     def getResult(self):
+        if len(self.result) == 0:
+            return None
+
         sum = 0
         for res in self.result:
             sum += res

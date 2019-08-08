@@ -214,7 +214,12 @@ class ControlPacketsGenerator:
 		data += list(basicKey)
 		data += list(serviceDataKey)
 		data += list(localizationKey)
-		data += list(meshDeviceKey)
+
+		MDKey = meshDeviceKey
+		if type(meshDeviceKey) is str:
+			MDKey = Conversion.ascii_or_hex_string_to_16_byte_array(meshDeviceKey)
+
+		data += list(MDKey)
 		data += list(meshAppKey)
 		data += list(meshNetworkKey)
 

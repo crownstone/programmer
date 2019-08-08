@@ -1,8 +1,6 @@
 import asyncio
 
 import RPi.GPIO as GPIO
-import time,random
-
 
 #                          -----------
 #   display diagram:       |    T    |
@@ -27,6 +25,9 @@ class DisplayDriver:
 
     def __init__(self):
         pass
+
+    def __del__(self):
+        self.cleanup()
 
     def start(self):
         self.persistingSlots = []
