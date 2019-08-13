@@ -264,8 +264,11 @@ class TestRunner:
         # BLE--> Check for advertisements in normal mode
         average = self.bluenetBLE.getRssiAverage(self.macAddress, scanDuration=4)
         if average is None:
-            await self.endInErrorCode(ErrorCodes.E_NO_BLE_SCAN_RECEIVED)
-            return False
+            print(gt(), "----- Checking Crownstone RSSI... (again)")
+            average = self.bluenetBLE.getRssiAverage(self.macAddress, scanDuration=4)
+            if average is None:
+                await self.endInErrorCode(ErrorCodes.E_NO_BLE_SCAN_RECEIVED)
+                return False
 
         print(gt(), "----- Crownstone RSSI is ", average, " with threshold", threshold)
         if average < threshold:

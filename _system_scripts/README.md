@@ -1,6 +1,9 @@
 # Preperation
 
-Assuming a blank lite image from raspbian:
+Assuming a blank stretch lite image from raspbian:
+
+- raspi-config, enable ssh, enable auto login.
+
 
 - get the USB dongle to mount.
     - Go to /etc/fstab and add this line:
@@ -28,6 +31,8 @@ Assuming a blank lite image from raspbian:
     source /media/programmer_code_dongle/_system_scripts/copyOps.sh
     ```
     There will be a reboot.
+    
+- ensure that the service starts on boot without ssh.
 
 - finally, when everything has been tested REALLY WELL, run the read-only-fs.sh in the danger folder
     ```
