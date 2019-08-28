@@ -34,7 +34,7 @@
 
 
 #include "lib/bluetooth.h"
-#include "lib/bluetooth/sdp.h"
+#include "lib/sdp.h"
 #include "lib/uuid.h"
 #include "lib/mgmt.h"
 #include "src/shared/mgmt.h"
@@ -44,6 +44,7 @@
 #include "gattrib.h"
 #include "gatt.h"
 #include "gatttool.h"
+#include "version.h"
 
 #define IO_CAPABILITY_NOINPUTNOOUTPUT   0x03
 
@@ -103,9 +104,11 @@ static enum state {
 } conn_state;
 
 
-static const char 
+static const char
   *tag_RESPONSE  = "rsp",
   *tag_ERRCODE   = "code",
+  *tag_ERRSTAT   = "estat",
+  *tag_ERRMSG    = "emsg",
   *tag_HANDLE    = "hnd",
   *tag_UUID      = "uuid",
   *tag_DATA      = "d",
@@ -132,12 +135,16 @@ static const char
   *rsp_READ      = "rd",
   *rsp_WRITE     = "wr",
   *rsp_MGMT      = "mgmt",
-  *rsp_SCAN      = "scan";
+  *rsp_SCAN      = "scan",
+  *rsp_OOB       = "oob";
 
 static const char
   *err_CONN_FAIL = "connfail",
-  *err_COMM_ERR  = "comerr",
-  *err_PROTO_ERR = "protoerr",
+  *err_ATT_ERR   = "atterr",   /* Use for ATT error codes */
+  *err_MGMT_ERR  = "mgmterr",  /* Use for Mgmt socket error codes */
+  *err_DECODING  = "decodeerr",
+  *err_SEND_FAIL = "sendfail",
+  *err_CALL_FAIL = "callfail",
   *err_NOT_FOUND = "notfound",
   *err_BAD_CMD   = "badcmd",
   *err_BAD_PARAM = "badparam",
@@ -146,11 +153,14 @@ static const char
   *err_NO_MGMT   = "nomgmt",
   *err_SUCCESS   = "success";
 
-static const char 
+static const char
   *st_DISCONNECTED = "disc",
   *st_CONNECTING   = "tryconn",
   *st_CONNECTED    = "conn",
   *st_SCANNING    = "scan";
+
+// delimits fields in response message
+#define RESP_DELIM "\x1e"
 
 static void resp_begin(const char *rsptype)
 {
@@ -159,23 +169,22 @@ static void resp_begin(const char *rsptype)
 
 static void send_sym(const char *tag, const char *val)
 {
-  printf(" %s=$%s", tag, val);
+  printf(RESP_DELIM "%s=$%s", tag, val);
 }
 
 static void send_uint(const char *tag, unsigned int val)
 {
-  printf(" %s=h%X", tag, val);
+  printf(RESP_DELIM "%s=h%X", tag, val);
 }
 
 static void send_str(const char *tag, const char *val)
 {
-  //!!FIXME
-  printf(" %s='%s", tag, val);
+  printf(RESP_DELIM "%s='%s", tag, val);
 }
 
 static void send_data(const unsigned char *val, size_t len)
 {
-  printf(" %s=b", tag_DATA);
+  printf(RESP_DELIM "%s=b", tag_DATA);
   while ( len-- > 0 )
     printf("%02X", *val++);
 }
@@ -183,7 +192,7 @@ static void send_data(const unsigned char *val, size_t len)
 static void send_addr(const struct mgmt_addr_info *addr)
 {
     const uint8_t *val = addr->bdaddr.b;
-    printf(" %s=b", tag_ADDR);
+    printf(RESP_DELIM "%s=b", tag_ADDR);
     int len = 6;
     /* Human-readable byte order is reverse of bdaddr.b */
     while ( len-- > 0 )
@@ -205,10 +214,36 @@ static void resp_error(const char *errcode)
   resp_end();
 }
 
+static void resp_str_error(const char *errcode, const char *msg)
+{
+  resp_begin(rsp_ERROR);
+  send_sym(tag_ERRCODE, errcode);
+  send_str(tag_ERRMSG, msg);
+  resp_end();
+}
+
+static void resp_att_error(uint8_t status)
+{
+  resp_begin(rsp_ERROR);
+  send_sym(tag_ERRCODE, err_ATT_ERR);
+  send_uint(tag_ERRSTAT, status);
+  send_str(tag_ERRMSG, att_ecode2str(status));
+  resp_end();
+}
+
 static void resp_mgmt(const char *errcode)
 {
   resp_begin(rsp_MGMT);
   send_sym(tag_ERRCODE, errcode);
+  resp_end();
+}
+
+static void resp_mgmt_err(uint8_t status)
+{
+  resp_begin(rsp_MGMT);
+  send_sym(tag_ERRCODE, err_MGMT_ERR);
+  send_uint(tag_ERRSTAT, status);
+  send_str(tag_ERRMSG, mgmt_errstr(status));
   resp_end();
 }
 
@@ -485,9 +520,8 @@ static void connect_cb(GIOChannel *io, GError *err, gpointer user_data)
 
     DBG("io = %p, err = %p", io, err);
     if (err) {
-        DBG("err = %s", err->message);
         set_state(STATE_DISCONNECTED);
-        resp_error(err_CONN_FAIL);
+        resp_str_error(err_CONN_FAIL, err->message);
         printf("# Connect error: %s\n", err->message);
         return;
     }
@@ -503,7 +537,7 @@ static void connect_cb(GIOChannel *io, GError *err, gpointer user_data)
     else if (cid == ATT_CID)
         mtu = ATT_DEFAULT_LE_MTU;
 
-    attrib = g_attrib_new(iochannel, mtu);
+    attrib = g_attrib_new(iochannel, mtu, false);
 
     g_attrib_register(attrib, ATT_OP_HANDLE_NOTIFY, GATTRIB_ALL_HANDLES,
                         events_handler, attrib, NULL);
@@ -558,7 +592,9 @@ static void primary_all_cb(uint8_t status, GSList *services, void *user_data)
     GSList *l;
 
     if (status) {
-        resp_error(err_COMM_ERR); // Todo: status
+        DBG("status returned error : %s (0x%02x)",
+            att_ecode2str(status), status);
+        resp_att_error(status);
         return;
     }
 
@@ -578,7 +614,9 @@ static void primary_by_uuid_cb(uint8_t status, GSList *ranges, void *user_data)
     GSList *l;
 
     if (status) {
-        resp_error(err_COMM_ERR); // Todo: status
+        DBG("status returned error : %s (0x%02x)",
+            att_ecode2str(status), status);
+        resp_att_error(status);
         return;
     }
 
@@ -596,7 +634,9 @@ static void included_cb(uint8_t status, GSList *includes, void *user_data)
     GSList *l;
 
     if (status) {
-        resp_error(err_COMM_ERR); // Todo: status
+        DBG("status returned error : %s (0x%02x)",
+            att_ecode2str(status), status);
+        resp_att_error(status);
         return;
     }
 
@@ -616,7 +656,9 @@ static void char_cb(uint8_t status, GSList *characteristics, void *user_data)
     GSList *l;
 
     if (status) {
-        resp_error(err_COMM_ERR); // Todo: status
+        DBG("status returned error : %s (0x%02x)",
+            att_ecode2str(status), status);
+        resp_att_error(status);
         return;
     }
 
@@ -636,7 +678,9 @@ static void char_desc_cb(uint8_t status, GSList *descriptors, void *user_data)
     GSList *l;
 
     if (status != 0) {
-        resp_error(err_COMM_ERR); // Todo: status
+        DBG("status returned error : %s (0x%02x)",
+            att_ecode2str(status), status);
+        resp_att_error(status);
         return;
     }
 
@@ -656,13 +700,15 @@ static void char_read_cb(guint8 status, const guint8 *pdu, guint16 plen,
     ssize_t vlen;
 
     if (status != 0) {
-        resp_error(err_COMM_ERR); // Todo: status
+        DBG("status returned error : %s (0x%02x)",
+            att_ecode2str(status), status);
+        resp_att_error(status);
         return;
     }
 
     vlen = dec_read_resp(pdu, plen, value, sizeof(value));
     if (vlen < 0) {
-        resp_error(err_COMM_ERR);
+        resp_error(err_DECODING); /* TODO: -vlen is an error code */
         return;
     }
 
@@ -686,7 +732,9 @@ static void char_read_by_uuid_cb(guint8 status, const guint8 *pdu,
     }
 
     if (status != 0) {
-        resp_error(err_COMM_ERR); // Todo: status
+        DBG("status returned error : %s (0x%02x)",
+            att_ecode2str(status), status);
+        resp_att_error(status);
         goto done;
     }
 
@@ -983,12 +1031,14 @@ static void char_write_req_cb(guint8 status, const guint8 *pdu, guint16 plen,
                             gpointer user_data)
 {
     if (status != 0) {
-        resp_error(err_COMM_ERR); // Todo: status
+        DBG("status returned error : %s (0x%02x)",
+            att_ecode2str(status), status);
+        resp_att_error(status);
         return;
     }
 
     if (!dec_write_resp(pdu, plen) && !dec_exec_write_resp(pdu, plen)) {
-        resp_error(err_PROTO_ERR);
+        resp_error(err_DECODING);
         return;
     }
 
@@ -999,7 +1049,7 @@ static void char_write_req_cb(guint8 status, const guint8 *pdu, guint16 plen,
 
 static void cmd_char_write_common(int argcp, char **argvp, int with_response)
 {
-    uint8_t *value;
+    uint8_t *value = NULL;
     size_t plen;
     int handle;
 
@@ -1008,7 +1058,7 @@ static void cmd_char_write_common(int argcp, char **argvp, int with_response)
         return;
     }
 
-    if (argcp < 3) {
+    if (argcp < 2) {
         resp_error(err_BAD_PARAM);
         return;
     }
@@ -1019,10 +1069,14 @@ static void cmd_char_write_common(int argcp, char **argvp, int with_response)
         return;
     }
 
-    plen = gatt_attr_data_from_string(argvp[2], &value);
-    if (plen == 0) {
-        resp_error(err_BAD_PARAM);
-        return;
+    if (argcp >= 3) {
+      plen = gatt_attr_data_from_string(argvp[2], &value);
+      if (plen == 0) {
+          resp_error(err_BAD_PARAM);
+          return;
+      }
+    } else {
+      plen = 0;
     }
 
     if (with_response)
@@ -1082,11 +1136,11 @@ static void cmd_sec_level(int argcp, char **argvp)
             BT_IO_OPT_INVALID);
     if (gerr) {
         printf("# Error: %s\n", gerr->message);
-        resp_error(err_COMM_ERR);
+        resp_str_error(err_CALL_FAIL, gerr->message);
         g_error_free(gerr);
     }
     else {
-        /* Tell bluepy the security level 
+        /* Tell bluepy the security level
          * has been changed successfuly */
         cmd_status(0, NULL);
     }
@@ -1098,12 +1152,14 @@ static void exchange_mtu_cb(guint8 status, const guint8 *pdu, guint16 plen,
     uint16_t mtu;
 
     if (status != 0) {
-        resp_error(err_COMM_ERR); // Todo: status
+        DBG("status returned error : %s (0x%02x)",
+            att_ecode2str(status), status);
+        resp_att_error(status);
         return;
     }
 
     if (!dec_mtu_resp(pdu, plen, &mtu)) {
-        resp_error(err_PROTO_ERR);
+        resp_error(err_DECODING);
         return;
     }
 
@@ -1117,7 +1173,7 @@ static void exchange_mtu_cb(guint8 status, const guint8 *pdu, guint16 plen,
     else
     {
         printf("# Error exchanging MTU\n");
-        resp_error(err_COMM_ERR);
+        resp_error(err_CALL_FAIL);
     }
 }
 
@@ -1157,7 +1213,7 @@ static void set_mode_complete(uint8_t status, uint16_t length,
     if (status != MGMT_STATUS_SUCCESS) {
         DBG("status returned error : %s (0x%02x)",
             mgmt_errstr(status), status);
-        resp_mgmt(err_PROTO_ERR);
+        resp_mgmt_err(status);
         return;
     }
 
@@ -1206,6 +1262,185 @@ static void cmd_le(int argcp, char **argvp)
     }
 }
 
+static void add_remote_oob_data_complete(uint8_t status, uint16_t len,
+                    const void *param, void *user_data)
+{
+    const struct mgmt_addr_info *rp = param;
+    char str[18];
+    if (status) {
+        DBG("status returned error : %s (0x%02x)",
+            mgmt_errstr(status), status);
+        resp_mgmt_err(status);
+        return;
+    }
+    ba2str(&rp->bdaddr, str);
+    DBG("  Remote data added for : %s\n", str);
+}
+
+static bool add_remote_oob_data(uint16_t index, const bdaddr_t *bdaddr,
+                const uint8_t addr_type,
+                const char *hash192, const char *rand192,
+                const char *hash256, const char *rand256)
+{
+    struct mgmt_cp_add_remote_oob_data cp;
+    uint8_t *oob;
+    size_t len;
+
+    if (!mgmt_master) {
+        resp_error(err_NO_MGMT);
+        return true;
+    }
+
+    memset(&cp, 0, sizeof(cp));
+    bacpy(&cp.addr.bdaddr, bdaddr);
+    cp.addr.type = addr_type;
+    if (hash192 && rand192) {
+        len = gatt_attr_data_from_string(hash192, &oob);
+        if (len == 0) {
+            resp_error(err_BAD_PARAM);
+            g_free(oob);
+            return false;
+        }
+        memcpy(cp.hash192, oob, 16);
+        g_free(oob);
+        len = gatt_attr_data_from_string(rand192, &oob);
+        if (len == 0) {
+            resp_error(err_BAD_PARAM);
+            memset(cp.hash192, 0, 16);
+            g_free(oob);
+            return false;
+        }
+        memcpy(cp.rand192, rand192, 16);
+        g_free(oob);
+    } else {
+        memset(cp.hash192, 0, 16);
+        memset(cp.rand192, 0, 16);
+    }
+    if (hash256 && rand256) {
+        len = gatt_attr_data_from_string(hash256, &oob);
+        if (len == 0) {
+            resp_error(err_BAD_PARAM);
+            memset(cp.hash192, 0, 16);
+            memset(cp.rand192, 0, 16);
+            g_free(oob);
+            return false;
+        }
+        memcpy(cp.hash256, oob, 16);
+        g_free(oob);
+        len = gatt_attr_data_from_string(rand256, &oob);
+        if (len == 0) {
+            resp_error(err_BAD_PARAM);
+            memset(cp.hash192, 0, 16);
+            memset(cp.rand192, 0, 16);
+            memset(cp.hash256, 0, 16);
+            g_free(oob);
+            return false;
+        }
+        memcpy(cp.rand256, rand256, 16);
+        g_free(oob);
+    } else {
+        memset(cp.hash256, 0, 16);
+        memset(cp.rand256, 0, 16);
+    }
+    if (mgmt_send(mgmt_master, MGMT_OP_ADD_REMOTE_OOB_DATA, mgmt_ind, sizeof(cp), &cp,
+                        add_remote_oob_data_complete,
+                        NULL, NULL) == 0) {
+        resp_error(err_SEND_FAIL);
+        g_free(oob);
+        return false;
+    }
+    g_free(oob);
+    return true;
+}
+
+static void cmd_add_oob(int argcp, char **argvp)
+{
+    bdaddr_t bdaddr;
+    char *C192 = NULL;
+    char *R192 = NULL;
+    char *C256 = NULL;
+    char *R256 = NULL;
+    uint8_t addr_type = BDADDR_LE_RANDOM;
+
+    if (argcp < 7) {
+        resp_mgmt(err_BAD_PARAM);
+        return;
+    }
+
+    if (str2ba(argvp[1], &bdaddr)) {
+        resp_mgmt(err_NOT_FOUND);
+        return;
+    }
+
+    if (!memcmp(argvp[2], "public", 6)) {
+        addr_type = BDADDR_LE_PUBLIC;
+    }
+
+    if ((!memcmp(argvp[3], "C_192", 5)) && (!memcmp(argvp[5], "R_192", 5))) {
+        C192 = argvp[4];
+        R192 = argvp[6];
+        if ((argcp > 8) && !memcmp(argvp[5], "C_256", 5) && (!memcmp(argvp[7], "R_256", 5))) {
+            C256 = argvp[6];
+            R256 = argvp[8];
+        }
+    } else if ((!memcmp(argvp[3], "C_256", 5)) && (!memcmp(argvp[5], "R_256", 5))) {
+        C256 = argvp[4];
+        R256 = argvp[6];
+    }
+
+    if (!add_remote_oob_data(0, &bdaddr, addr_type, C192, R192, C256, R256)) {
+        DBG("Failed to add remote oob data");
+    }
+}
+
+static void read_local_oob_data_complete(uint8_t status, uint16_t len,
+                    const void *param, void *user_data)
+{
+    const struct mgmt_rp_read_local_oob_ext_data *rp = param;
+    uint32_t eir_len = rp->eir_len;
+    unsigned int i;
+
+    if (status) {
+        DBG("status returned error : %s (0x%02x)",
+            mgmt_errstr(status), status);
+        resp_mgmt_err(status);
+        return;
+    }
+    DBG("received local OOB ext with eir_len = %d",eir_len);
+    for (i = 0; i<eir_len; i++)
+        DBG("0x%02x ", rp->eir[i]);
+    
+    resp_begin(rsp_OOB);
+    send_data(rp->eir, eir_len);
+    resp_end();
+}
+
+static bool read_local_oob_data(uint16_t index)
+{
+    struct mgmt_cp_read_local_oob_ext_data cp;
+
+    if (!mgmt_master) {
+        resp_error(err_NO_MGMT);
+        return true;
+    }
+    /* For now we only handle BLE OOB */
+    cp.type = 6;
+    if (mgmt_send(mgmt_master, MGMT_OP_READ_LOCAL_OOB_EXT_DATA, mgmt_ind, sizeof(cp), &cp,
+                        read_local_oob_data_complete,
+                        NULL, NULL) == 0) {
+        resp_error(err_SEND_FAIL);
+        return false;
+    }
+    return true;
+}
+
+static void cmd_read_oob(int argcp, char **argvp)
+{
+    if (!read_local_oob_data(0)) {
+        DBG("Failed to read local oob data");
+    }
+}
+
 static void cmd_pairable(int argcp, char **argvp)
 {
     if (argcp < 2) {
@@ -1224,7 +1459,7 @@ static void pair_device_complete(uint8_t status, uint16_t length,
     if (status != MGMT_STATUS_SUCCESS) {
         DBG("status returned error : %s (0x%02x)",
                 mgmt_errstr(status), status);
-        resp_mgmt(err_PROTO_ERR);
+        resp_mgmt_err(status);
         return;
     }
 
@@ -1267,7 +1502,7 @@ static void cmd_pair(int argcp, char **argvp)
                 pair_device_complete, NULL,
                 NULL) == 0) {
         DBG("mgmt_send(MGMT_OP_PAIR_DEVICE) failed for %s for hci%u", opt_dst, mgmt_ind);
-        resp_mgmt(err_PROTO_ERR);
+        resp_mgmt(err_SEND_FAIL);
         return;
     }
 }
@@ -1278,7 +1513,7 @@ static void unpair_device_complete(uint8_t status, uint16_t length,
     if (status != MGMT_STATUS_SUCCESS) {
         DBG("status returned error : %s (0x%02x)",
                 mgmt_errstr(status), status);
-        resp_mgmt(err_PROTO_ERR);
+        resp_mgmt_err(status);
         return;
     }
 
@@ -1316,7 +1551,7 @@ static void cmd_unpair(int argcp, char **argvp)
             unpair_device_complete, NULL,
                 NULL) == 0) {
         DBG("mgmt_send(MGMT_OP_UNPAIR_DEVICE) failed for %s for hci%u", opt_dst, mgmt_ind);
-        resp_mgmt(err_PROTO_ERR);
+        resp_mgmt(err_SEND_FAIL);
         return;
     }
 }
@@ -1325,7 +1560,10 @@ static void scan_cb(uint8_t status, uint16_t length, const void *param, void *us
 {
     if (status != MGMT_STATUS_SUCCESS) {
         DBG("Scan error: %s (0x%02x)", mgmt_errstr(status), status);
-        resp_mgmt(status == MGMT_STATUS_BUSY? err_BUSY : err_PROTO_ERR);
+        if (status==MGMT_STATUS_BUSY)
+          resp_mgmt(err_BUSY);
+        else
+          resp_mgmt_err(status);
         return;
     }
 
@@ -1350,7 +1588,7 @@ static void scan(bool start)
         &cp, scan_cb, NULL, NULL) == 0)
     {
         DBG("mgmt_send(MGMT_OP_%s_DISCOVERY) failed", start? "START" : "STOP");
-        resp_mgmt(err_PROTO_ERR);
+        resp_mgmt(err_SEND_FAIL);
         return;
     }
 }
@@ -1410,7 +1648,6 @@ static gboolean hci_monitor_cb(GIOChannel *chan, GIOCondition cond, gpointer use
                         DBG("Start of passive scan.");
                     } else {
                         if (conn_state == STATE_SCANNING) {
-                            resp_mgmt(err_SUCCESS);
                             set_state(STATE_DISCONNECTED);
                         }
                         DBG("End of passive scan - removing watch.");
@@ -1452,10 +1689,14 @@ static gboolean hci_monitor_cb(GIOChannel *chan, GIOCondition cond, gpointer use
                             // const uint8_t *val= ev->bdaddr.b;
                             const uint8_t rssi= ev->data[ev->length];
                             struct mgmt_addr_info addr;
-                            addr.type= ev->bdaddr_type;
+                            switch (ev->bdaddr_type) {
+                                case LE_PUBLIC_ADDRESS: addr.type= BDADDR_LE_PUBLIC; break;
+                                case LE_RANDOM_ADDRESS: addr.type= BDADDR_LE_RANDOM; break;
+                                default: addr.type= 0;
+                            }
                             addr.bdaddr= ev->bdaddr;
-                            // DBG("Device found: %02X:%02X:%02X:%02X:%02X:%02X type=%X length=%d data[0]=0x%02x rssi=0x%02x", 
-                            //     val[5], val[4], val[3], val[2], val[1], val[0], 
+                            // DBG("Device found: %02X:%02X:%02X:%02X:%02X:%02X type=%X length=%d data[0]=0x%02x rssi=0x%02x",
+                            //     val[5], val[4], val[3], val[2], val[1], val[0],
                             //     ev->bdaddr_type, ev->length, ev->data[0], ev->data[ev->length]);
                             if (0) {
                                 int i=0;
@@ -1521,6 +1762,7 @@ static void discover(bool start)
                                              own_type, filter_policy, 10000);
         if (err < 0) {
             DBG("Set scan parameters failed");
+            resp_mgmt(err_BAD_STATE);
             return;
         }
         hci_io = g_io_channel_unix_new(hci_dd);
@@ -1533,6 +1775,7 @@ static void discover(bool start)
         olen = sizeof(of);
         if (getsockopt(hci_dd, SOL_HCI, HCI_FILTER, &of, &olen) < 0) {
             printf("Could not get socket options\n");
+            resp_mgmt(err_BAD_STATE);
             return;
         }
         hci_filter_clear(&nf);
@@ -1544,6 +1787,7 @@ static void discover(bool start)
 
         if (setsockopt(hci_dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0) {
             printf("Could not set socket options\n");
+            resp_mgmt(err_BAD_STATE);
             return;
         }
 
@@ -1552,12 +1796,15 @@ static void discover(bool start)
         if (err < 0) {
             //andy: signal error
             DBG("Enable scan failed");
+            resp_mgmt(err_BAD_STATE);
             return;
         }
 
         resp_mgmt(err_SUCCESS);
         set_state(STATE_SCANNING);
     } else {
+        const char* errcode = err_SUCCESS;
+
         // set filter to receive no events
         DBG(" stop pasv scan -----------------------------------");
         setsockopt(hci_dd, SOL_HCI, HCI_FILTER, &of, sizeof(of));
@@ -1565,12 +1812,12 @@ static void discover(bool start)
         err = hci_le_set_scan_enable(hci_dd, 0x00, filter_dup, 10000);
         if (err < 0) {
             DBG("Disable scan failed");
-            exit(1);
+            errcode = err_BAD_STATE;
         }
         hci_close_dev(hci_dd);
         hci_dd= -1;
         hci_io= NULL;
-        resp_mgmt(err_SUCCESS);
+        resp_mgmt(errcode);
         set_state(STATE_DISCONNECTED);
     }
 }
@@ -1621,9 +1868,9 @@ static struct {
         "Characteristics Value/Descriptor Read by handle" },
     { "rdu",        cmd_read_uuid,  "<UUID> [start hnd] [end hnd]",
         "Characteristics Value/Descriptor Read by UUID" },
-    { "wrr",        cmd_char_write_rsp, "<handle> <new value>",
+    { "wrr",        cmd_char_write_rsp, "<handle> [<new value>]",
         "Characteristic Value Write (Write Request)" },
-    { "wr",         cmd_char_write, "<handle> <new value>",
+    { "wr",         cmd_char_write, "<handle> [<new value>]",
         "Characteristic Value Write (No response)" },
     { "secu",       cmd_sec_level,  "[low | medium | high]",
         "Set security level. Default: low" },
@@ -1631,6 +1878,10 @@ static struct {
         "Exchange MTU for GATT/ATT" },
     { "le",      cmd_le,  "[on | off]",
         "Control LE feature on the controller" },
+    { "remote_oob",      cmd_add_oob,  "address [[C_192 c192] [R_192 r192]] [[C_256 c256] [R_256 r256]]",
+        "Add OOB data for remote address" },
+    { "local_oob",      cmd_read_oob,  "",
+        "Read local OOB data" },
     { "pairable",   cmd_pairable,  "[on | off]",
         "Control PAIRABLE feature on the controller" },
     { "pair",      cmd_pair,  "",
@@ -1669,7 +1920,10 @@ static void parse_line(char *line_read)
     if (*line_read == '\0')
         goto done;
 
-    g_shell_parse_argv(line_read, &argcp, &argvp, NULL);
+    if (!g_shell_parse_argv(line_read, &argcp, &argvp, NULL)) {
+        resp_error(err_BAD_CMD);
+        goto done;
+    }
 
     for (i = 0; commands[i].cmd; i++)
         if (strcasecmp(commands[i].cmd, argvp[0]) == 0)
@@ -1818,16 +2072,20 @@ int main(int argc, char *argv[])
     opt_dst = NULL;
     opt_dst_type = g_strdup("public");
 
-    DBG(__FILE__ " built at " __TIME__ " on " __DATE__);
+    printf("# " __FILE__ " version " VERSION_STRING " built at " __TIME__ " on " __DATE__ "\n");
 
     if (argc > 1) {
         int index;
 
-        if (sscanf (argv[1], "%i", &index)!=1) { 
-            DBG("error converting argument: %s  to device index integer",argv[1]);
+        if (sscanf (argv[1], "%i", &index)!=1) {
+            printf("# ERROR: cannot convert '%s' to device index integer\n",argv[1]);
+            exit(1);
         } else {
             mgmt_setup(index);
         }
+    } else {
+        // If no argument given, use index 0
+        mgmt_setup(0);
     }
 
     event_loop = g_main_loop_new(NULL, FALSE);

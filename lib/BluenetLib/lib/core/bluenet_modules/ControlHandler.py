@@ -1,3 +1,7 @@
+import time
+
+from BluenetLib.Exceptions import BluenetException, BleError
+
 from BluenetLib.lib.protocol.Characteristics import CrownstoneCharacteristics
 from BluenetLib.lib.protocol.ControlPackets import ControlPacketsGenerator
 from BluenetLib.lib.protocol.Services import CSServices
@@ -11,14 +15,14 @@ class ControlHandler:
     def getAndSetSessionNone(self):
         # read the nonce
         rawNonce = self.core.ble.readCharacteristicWithoutEncryption(CSServices.CrownstoneService, CrownstoneCharacteristics.SessionNonce)
-        
+
         # decrypt it
         decryptedNonce = EncryptionHandler.decryptSessionNonce(rawNonce, self.core.settings.basicKey)
-        
+
         # load into the settings object
         self.core.settings.setSessionNonce(decryptedNonce)
 
-    
+
     def setSwitchState(self, switchState):
         """
          :param switchState: number [0..1]
@@ -48,7 +52,7 @@ class ControlHandler:
         :param allow: bool
         """
         self._writeControlPacket(ControlPacketsGenerator.getAllowDimmingPacket(allow))
-        
+
     def disconnect(self):
         """
           This forces the Crownstone to disconnect from you
@@ -61,29 +65,96 @@ class ControlHandler:
                 pass
             else:
                 raise err
-            
-        
+
+
 
     def lockSwitch(self, lock):
         """
         :param lock: bool
         """
         self._writeControlPacket(ControlPacketsGenerator.getLockSwitchPacket(lock))
-    
+
 
     def reset(self):
         self._writeControlPacket(ControlPacketsGenerator.getResetPacket())
-    
 
 
 
+    def recovery(self, address):
+        self.core.connect(address, ignoreEncryption=True)
+        self._recoveryByFactoryReset()
+        self._checkRecoveryProcess()
+        self.core.disconnect()
+        time.sleep(5)
+        self.core.connect(address, ignoreEncryption=True)
+        self._recoveryByFactoryReset()
+        self._checkRecoveryProcess()
+        self.core.disconnect()
+        time.sleep(2)
+
+    def _recoveryByFactoryReset(self):
+        packet = ControlPacketsGenerator.getFactoryResetPacket()
+        return self.core.ble.writeToCharacteristicWithoutEncryption(
+            CSServices.CrownstoneService,
+            CrownstoneCharacteristics.FactoryReset,
+            packet
+        )
+
+    def _checkRecoveryProcess(self):
+        result = self.core.ble.readCharacteristicWithoutEncryption(CSServices.CrownstoneService, CrownstoneCharacteristics.FactoryReset)
+        if result[0] == 1:
+            return True
+        elif result[0] == 2:
+            raise BluenetException(BleError.RECOVERY_MODE_DISABLED, "The recovery mechanism has been disabled by the Crownstone owner.")
+        else:
+            raise BluenetException(BleError.NOT_IN_RECOVERY_MODE, "The recovery mechanism has expired. It is only available briefly after the Crownstone is powered on.")
+
+
+    #  self.bleManager.readCharacteristic(CSServices.CrownstoneService, characteristicId: CrownstoneCharacteristics.FactoryReset)
+    # {(result:[UInt8]) -> Void in
+    # if (result[0] == 1)
+    #     seal.fulfill(())
+    # else if (result[0] == 2) {
+    # seal.reject(BluenetError.RECOVER_MODE_DISABLED)
+    # else {
+    # seal.reject(BluenetError.NOT_IN_RECOVERY_MODE)
+    # .catch{(err) -> Void in
+    # seal.reject(BluenetError.CANNOT_READ_FACTORY_RESET_CHARACTERISTIC)
+
+
+    # return self.bleManager.connect(uuid)}
+    # .then
+    # {(_) -> Promise < Void > in
+    # return self._recoverByFactoryReset()}
+    # .then
+    # {(_) -> Promise < Void > in
+    # return self._checkRecoveryProcess()}
+    # .then
+    # {(_) -> Promise < Void > in
+    # return self.bleManager.disconnect()}
+    # .then
+    # {(_) -> Promise < Void > in
+    # return self.bleManager.waitToReconnect()}
+    # .then
+    # {(_) -> Promise < Void > in
+    # return self.bleManager.connect(uuid)}
+    # .then
+    # {(_) -> Promise < Void > in
+    # return self._recoverByFactoryReset()}
+    # .then
+    # {(_) -> Promise < Void > in
+    # return self._checkRecoveryProcess()}
+    # .then
+    # {(_) -> Promise < Void > in
+    # self.bleManager.settings.restoreEncryption()
+    # return self.bleManager.disconnect()
 
 
 
     """
     ---------------  UTIL  ---------------
     """
-    
+
 
 
 

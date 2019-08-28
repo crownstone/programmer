@@ -1,7 +1,12 @@
+import time
+
 from bluepy.btle import Scanner, Peripheral, ADDR_TYPE_RANDOM, BTLEException
 
 from BluenetLib.Exceptions import BleError, BluenetBleException
 from BluenetLib._EventBusInstance import BluenetEventBus
+from BluenetLib.lib.constants import ScanBackends
+from BluenetLib.lib.core.bluetooth_delegates.AioScanDelegate import AioScanDelegate
+from BluenetLib.lib.core.bluetooth_delegates.AioScanner import AioScanner
 from BluenetLib.lib.core.bluetooth_delegates.SingleNotificationDelegate import PeripheralDelegate
 from BluenetLib.lib.core.bluetooth_delegates.ScanDelegate import ScanDelegate
 from BluenetLib.lib.core.modules.Validator import Validator
@@ -11,12 +16,11 @@ from BluenetLib.lib.util.EncryptionHandler import EncryptionHandler
 
 from threading import Timer
 
-
 CCCD_UUID = 0x2902
 
 class BleHandler:
     
-    def __init__(self, settings, hciIndex=0):
+    def __init__(self, settings, hciIndex=0, scanBackend = ScanBackends.Bluepy):
         self.connectedPeripherals = {}
 
         self.settings = None
@@ -35,7 +39,12 @@ class BleHandler:
         self.validator = Validator()
         self.settings = settings
         self.hciIndex = hciIndex
-        self.scanner = Scanner(self.hciIndex).withDelegate(ScanDelegate(settings))
+        self.scanBackend = scanBackend
+
+        if self.scanBackend == ScanBackends.Aio:
+            self.scanner = AioScanner(self.hciIndex).withDelegate(AioScanDelegate(settings))
+        else:
+            self.scanner = Scanner(self.hciIndex).withDelegate(ScanDelegate(settings))
         self.subscriptionIds.append(BluenetEventBus.subscribe(SystemBleTopics.abortScanning, lambda x: self.abortScanning()))
         
     
@@ -67,16 +76,19 @@ class BleHandler:
     
     def startScanning(self, scanDuration=3):
         if not self.scanningActive:
-            self.scanner.start()
             self.scanningActive = True
             self.scanAborted = False
-            scanTime = 0
-            processInterval = 0.5
-            while self.scanningActive and scanTime < scanDuration and not self.scanAborted:
-                scanTime += processInterval
-                self.scanner.process(processInterval)
-            
-            self.stopScanning()
+            if self.scanBackend == ScanBackends.Aio:
+                self.scanner.start(scanDuration)
+            else:
+                self.scanner.start()
+                scanTime = 0
+                processInterval = 0.5
+                while self.scanningActive and scanTime < scanDuration and not self.scanAborted:
+                    scanTime += processInterval
+                    self.scanner.process(processInterval)
+
+                self.stopScanning()
 
     def startScanningBackground(self, scanDuration=3):
         Timer(0.0001, lambda: self.startScanning(scanDuration))
@@ -90,6 +102,8 @@ class BleHandler:
     def abortScanning(self):
         if self.scanningActive:
             self.scanAborted = True
+            if self.scanBackend == ScanBackends.Aio:
+                self.scanner.stop()
     
     def enableNotifications(self):
         print("ENABLE NOTIFICATIONS IS NOT IMPLEMENTED YET")
@@ -100,8 +114,13 @@ class BleHandler:
     def writeToCharacteristic(self, serviceUUID, characteristicUUID, content):
         targetCharacteristic = self.getCharacteristic(serviceUUID, characteristicUUID)
         encryptedContent = EncryptionHandler.encrypt(content, self.settings)
+        print(encryptedContent)
         targetCharacteristic.write(encryptedContent, withResponse=True)
 
+    def writeToCharacteristicWithoutEncryption(self, serviceUUID, characteristicUUID, content):
+        byteContent = bytes(content)
+        targetCharacteristic = self.getCharacteristic(serviceUUID, characteristicUUID)
+        targetCharacteristic.write(byteContent, withResponse=True)
 
     def readCharacteristic(self, serviceUUID, characteristicUUID):
         data = self.readCharacteristicWithoutEncryption(serviceUUID, characteristicUUID)

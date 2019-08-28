@@ -23,18 +23,24 @@ class SetupHandler:
                 return True
         return False
 
-    def setup(self, sphereId, crownstoneId, meshAccessAddress, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor):
+    def setup(self, address, sphereId, crownstoneId, meshAccessAddress, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor):
         characteristics = self.core.ble.getCharacteristics(CSServices.SetupService)
-
-        if self.hasCharacteristic(characteristics, SetupCharacteristics.SetupControlV2):
-            print("BluenetBLE: Fast Setup V2 is supported. Performing..")
-            self.fastSetupV2(sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor)
-        elif self.hasCharacteristic(characteristics, SetupCharacteristics.SetupControl):
-            print("BluenetBLE: Fast Setup is supported. Performing..")
-            self.fastSetup(crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor)
-        else:
-            print("BluenetBLE: Fast Setup is NOT supported. Performing classic setup..")
-            self.classicSetup(crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor)
+        try:
+            if self.hasCharacteristic(characteristics, SetupCharacteristics.SetupControlV2):
+                print("BluenetBLE: Fast Setup V2 is supported. Performing..")
+                self.fastSetupV2(sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor)
+            elif self.hasCharacteristic(characteristics, SetupCharacteristics.SetupControl):
+                print("BluenetBLE: Fast Setup is supported. Performing..")
+                self.fastSetup(crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor)
+            else:
+                print("BluenetBLE: Fast Setup is NOT supported. Performing classic setup..")
+                self.classicSetup(crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor)
+        except BluenetBleException as e:
+            if e.type is not BleError.NOTIFICATION_STREAM_TIMEOUT:
+                raise e
+        isNormalMode = self.core.isCrownstoneInNormalMode(address, 10, waitUntilInRequiredMode=True)
+        if not isNormalMode:
+            raise BluenetBleException(BleError.SETUP_FAILED, "The setup has failed.")
 
 
     def fastSetupV2(self, sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor):
@@ -47,8 +53,9 @@ class SetupHandler:
             SetupCharacteristics.SetupControlV2,
             lambda: self._writeFastSetupV2(sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor),
             lambda notificationResult: self._handleResult(notificationResult),
-            5
+            3
         )
+
         print("BluenetBLE: Closing Setup V2.")
         self.core.settings.exitSetup()
 

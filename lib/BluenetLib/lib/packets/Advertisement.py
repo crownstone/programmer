@@ -4,25 +4,28 @@ from BluenetLib.lib.util.Conversion import Conversion
 
 class Advertisement:
     
-    def __init__(self, address, rssi, nameText, serviceDataText):
+    def __init__(self, address, rssi, nameText, serviceData, serviceUUID=None):
         self.address = address
         self.rssi = rssi
         self.name = nameText
 
-        self.serviceUUID = None
+        self.serviceUUID = serviceUUID
         self.serviceData = None
         self.operationMode = None
 
-        dataString = serviceDataText
+        dataString = serviceData
         
-        if serviceDataText is not None:
-            dataArray = Conversion.hex_string_to_uint8_array(dataString)
-            self.serviceUUID = Conversion.uint8_array_to_uint16([dataArray[0], dataArray[1]])
-            # pop the service UUID
-            dataArray.pop(0)
-            dataArray.pop(0)
-            
-            if serviceDataText:
+        if serviceData is not None:
+            if isinstance(serviceData, str):
+                dataArray = Conversion.hex_string_to_uint8_array(dataString)
+                self.serviceUUID = Conversion.uint8_array_to_uint16([dataArray[0], dataArray[1]])
+                # pop the service UUID
+                dataArray.pop(0)
+                dataArray.pop(0)
+            else:
+                dataArray = serviceData
+
+            if dataArray:
                 self.serviceData = ServiceData(dataArray)
     
             self.operationMode = "NORMAL"

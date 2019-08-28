@@ -1,3 +1,4 @@
+from BluenetLib.lib.constants import ScanBackends
 from BluenetLib.lib.core.modules.Gatherer import Gatherer
 from BluenetLib.lib.core.modules.NormalModeChecker import NormalModeChecker
 from BluenetLib.lib.core.modules.RssiChecker import RssiChecker
@@ -16,15 +17,14 @@ from BluenetLib.lib.core.modules.NearestSelector import NearestSelector
 from BluenetLib.lib.topics.SystemBleTopics import SystemBleTopics
 from BluenetLib.lib.topics.Topics import Topics
 
-
 class BluetoothCore:
     
-    def __init__(self, hciIndex = 0):
+    def __init__(self, hciIndex = 0, scanBackend = ScanBackends.Bluepy):
         self.settings = BluenetSettings()
         self.control  = ControlHandler(self)
         self.setup    = SetupHandler(self)
         self.state    = StateHandler(self)
-        self.ble      = BleHandler(self.settings, hciIndex)
+        self.ble      = BleHandler(self.settings, hciIndex, scanBackend)
         
     def shutDown(self):
         self.ble.shutDown()
@@ -55,19 +55,20 @@ class BluetoothCore:
         self.setSettings(data["admin"], data["member"], data["basic"], data["serviceDataKey"], data["localizationKey"], data["meshApplicationKey"], data["meshNetworkKey"])
         
 
-    def connect(self, address):
+    def connect(self, address, ignoreEncryption=False):
         self.ble.connect(address)
-        try:
-            self.control.getAndSetSessionNone()
-        except BluenetBleException as err:
-            # the only relevant error here is this one. If it is any other, the Crownstone is in the wrong mode
-            if err.type is BleError.COULD_NOT_VALIDATE_SESSION_NONCE:
-                raise err
+        if not ignoreEncryption:
+            try:
+                self.control.getAndSetSessionNone()
+            except BluenetBleException as err:
+                # the only relevant error here is this one. If it is any other, the Crownstone is in the wrong mode
+                if err.type is BleError.COULD_NOT_VALIDATE_SESSION_NONCE:
+                    raise err
 
 
     def setupCrownstone(self, address, sphereId, crownstoneId, meshAccessAddress, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor):
         self.connect(address)
-        self.setup.setup(sphereId, crownstoneId, meshAccessAddress, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor)
+        self.setup.setup(address, sphereId, crownstoneId, meshAccessAddress, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor)
         self.disconnect()
         
     
@@ -147,14 +148,17 @@ class BluetoothCore:
                     raise BluenetException(BluenetError.INVALID_ADDRESS, "Addresses to Exclude is either an array of addresses (like 'f7:19:a4:ef:ea:f6') or an array of dicts with the field 'address'")
             else:
                 addressesToExcludeSet.add(data.lower())
-        
+
         selector = NearestSelector(setup, rssiAtLeast, returnFirstAcceptable, addressesToExcludeSet)
     
         topic = Topics.advertisement
         if not validated:
             topic = SystemBleTopics.rawAdvertisement
+            subscriptionId = BluenetEventBus.subscribe(topic, lambda advertisement: selector.handleAdvertisement(advertisement.getDictionary()))
+        else:
+            subscriptionId = BluenetEventBus.subscribe(topic, lambda advertisementData: selector.handleAdvertisement(advertisementData))
     
-        subscriptionId = BluenetEventBus.subscribe(topic, selector.handleAdvertisement)
+
         
         self.ble.startScanning(scanDuration=scanDuration)
     
