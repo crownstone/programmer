@@ -38,6 +38,8 @@ class SetupHandler:
         except BluenetBleException as e:
             if e.type is not BleError.NOTIFICATION_STREAM_TIMEOUT:
                 raise e
+            else:
+                print("BluenetBLE: Notification Stream timeout, checking for result....")
         isNormalMode = self.core.isCrownstoneInNormalMode(address, 10, waitUntilInRequiredMode=True)
         if not isNormalMode:
             raise BluenetBleException(BleError.SETUP_FAILED, "The setup has failed.")

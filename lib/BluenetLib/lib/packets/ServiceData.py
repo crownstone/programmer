@@ -117,12 +117,13 @@ class ServiceData:
         return returnDict
     
     
-    def getSummary(self):
+    def getSummary(self, address):
         errorsDictionary = CrownstoneErrors(self.errorsBitmask).getDictionary()
     
         returnDict = {}
     
         returnDict["id"] = self.crownstoneId
+        returnDict["address"] = address
         returnDict["setupMode"] = self.isInSetupMode()
         returnDict["switchState"] = self.switchState
         returnDict["temperature"] = self.temperature

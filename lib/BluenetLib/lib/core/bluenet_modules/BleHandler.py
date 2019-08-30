@@ -114,7 +114,6 @@ class BleHandler:
     def writeToCharacteristic(self, serviceUUID, characteristicUUID, content):
         targetCharacteristic = self.getCharacteristic(serviceUUID, characteristicUUID)
         encryptedContent = EncryptionHandler.encrypt(content, self.settings)
-        print(encryptedContent)
         targetCharacteristic.write(encryptedContent, withResponse=True)
 
     def writeToCharacteristicWithoutEncryption(self, serviceUUID, characteristicUUID, content):

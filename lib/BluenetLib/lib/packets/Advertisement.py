@@ -71,7 +71,7 @@ class Advertisement:
     def getSummary(self):
         data = {}
         if self.serviceData is not None:
-            data = self.serviceData.getSummary()
+            data = self.serviceData.getSummary(self.address)
         return data
 
     

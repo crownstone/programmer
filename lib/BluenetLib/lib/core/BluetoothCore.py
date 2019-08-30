@@ -108,7 +108,7 @@ class BluetoothCore:
     def isCrownstoneInNormalMode(self, address, scanDuration=3, waitUntilInRequiredMode=False):
         # print("Checking if it is in normal mode, address", address)
         checker = NormalModeChecker(address, waitUntilInRequiredMode)
-        subscriptionId = BluenetEventBus.subscribe(Topics.advertisement, checker.handleAdvertisement)
+        subscriptionId = BluenetEventBus.subscribe(SystemBleTopics.rawAdvertisement, lambda advertisement: checker.handleAdvertisement(advertisement.getDictionary()))
 
         self.ble.startScanning(scanDuration=scanDuration)
 
@@ -118,7 +118,7 @@ class BluetoothCore:
 
     def getRssiAverage(self, address, scanDuration=3):
         checker = RssiChecker(address)
-        subscriptionId = BluenetEventBus.subscribe(Topics.advertisement, checker.handleAdvertisement)
+        subscriptionId = BluenetEventBus.subscribe(SystemBleTopics.rawAdvertisement, lambda advertisement: checker.handleAdvertisement(advertisement.getDictionary()))
 
         self.ble.startScanning(scanDuration=scanDuration)
 

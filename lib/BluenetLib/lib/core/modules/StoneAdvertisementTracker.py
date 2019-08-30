@@ -143,8 +143,9 @@ class StoneAdvertisementTracker:
         count = 0
         total = 0
 
-        for key, rssi in self.rssiHistory.items():
-            total = total + rssi
+        keyList = list(self.rssiHistory)
+        for key in keyList:
+            total = total + self.rssiHistory[key]
             count += 1
 
         if count > 0:
