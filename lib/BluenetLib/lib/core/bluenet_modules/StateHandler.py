@@ -1,4 +1,8 @@
-from BluenetLib.lib.protocol.BlePackets import ReadStatePacket
+from BluenetLib.Exceptions import BluenetException, BluenetError
+
+from BluenetLib.lib.packets.ResultPacket import ResultPacket
+
+from BluenetLib.lib.protocol.BlePackets import ControlStateGetPacket
 from BluenetLib.lib.protocol.BluenetTypes import StateType
 from BluenetLib.lib.protocol.Characteristics import CrownstoneCharacteristics
 from BluenetLib.lib.protocol.Services import CSServices
@@ -42,18 +46,23 @@ class StateHandler:
         """
         :param stateType: StateType
         """
-        result = self.core.ble.setupSingleNotification(CSServices.CrownstoneService, CrownstoneCharacteristics.StateRead, lambda: self._setState(stateType))
-        length = Conversion.uint8_array_to_uint16([result[2], result[3]])
-        
-        state = []
-        for i in range(0,length):
-            state.append(result[i+4])
-            
-        return state
-        
-    
-    def _setState(self, stateType):
-        """
-        :param stateType: StateType
-        """
-        self.core.ble.writeToCharacteristic(CSServices.CrownstoneService, CrownstoneCharacteristics.StateControl, ReadStatePacket(stateType).getPacket())
+        result = self.core.ble.setupSingleNotification(CSServices.CrownstoneService, CrownstoneCharacteristics.Result, lambda: self._requestState(stateType))
+
+        resultPacket = ResultPacket(result)
+        if resultPacket.valid:
+            # the payload of the resultPacket is padded with stateType and ID at the beginning
+
+            state = []
+            for i in range(4, len(resultPacket.payload)):
+                state.append(resultPacket.payload[i])
+
+            return state
+        else:
+            raise BluenetException(BluenetError.INCORRECT_RESPONSE_LENGTH, "Result is invalid")
+
+    def _requestState(self, stateType):
+        self.core.ble.writeToCharacteristic(
+            CSServices.CrownstoneService,
+            CrownstoneCharacteristics.Control,
+            ControlStateGetPacket(stateType).getPacket()
+        )

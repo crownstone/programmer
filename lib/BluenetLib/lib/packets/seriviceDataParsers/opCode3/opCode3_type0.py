@@ -6,28 +6,30 @@ from BluenetLib.lib.util.Timestamp import reconstructTimestamp
 
 def parseOpCode3_type0(serviceData, data):
     if len(data) == 17:
-        # opCode = data[0]
-        # dataType = data[1]
+        # dataType = data[0]
         
         serviceData.stateOfExternalCrownstone = False
         
-        serviceData.crownstoneId = data[2]
-        serviceData.switchState  = data[3]
-        serviceData.flagsBitmask = data[4]
+        serviceData.crownstoneId = data[1]
+        serviceData.switchState  = data[2]
+        serviceData.flagsBitmask = data[3]
         
         # bitmask states
         bitmaskArray = Conversion.uint8_to_bit_array(serviceData.flagsBitmask)
         
-        serviceData.dimmingAvailable   = bitmaskArray[0]
+        serviceData.dimmerReady   = bitmaskArray[0]
         serviceData.dimmingAllowed     = bitmaskArray[1]
         serviceData.hasError           = bitmaskArray[2]
         serviceData.switchLocked       = bitmaskArray[3]
         serviceData.timeIsSet          = bitmaskArray[4]
         serviceData.switchCraftEnabled = bitmaskArray[5]
-        
-        serviceData.temperature        = Conversion.uint8_to_int8(data[5])
-        powerFactor                    = Conversion.uint8_to_int8(data[6])
-        realPower                      = Conversion.uint16_to_int16(Conversion.uint8_array_to_uint16([data[7], data[8]]))
+
+        serviceData.tapToToggleEnabled = bitmaskArray[6]
+        serviceData.behaviourOverridden = bitmaskArray[7]
+
+        serviceData.temperature        = Conversion.uint8_to_int8(data[4])
+        powerFactor                    = Conversion.uint8_to_int8(data[5])
+        realPower                      = Conversion.uint16_to_int16(Conversion.uint8_array_to_uint16([data[6], data[7]]))
         
         serviceData.powerFactor = float(powerFactor) / 127.0
         
@@ -42,23 +44,25 @@ def parseOpCode3_type0(serviceData, data):
         
         serviceData.accumulatedEnergy = Conversion.uint32_to_int32(
             Conversion.uint8_array_to_uint32([
+                data[8],
                 data[9],
                 data[10],
-                data[11],
-                data[12]
+                data[11]
             ])
         )
         
-        serviceData.partialTimestamp = Conversion.uint8_array_to_uint16([data[13], data[14]])
+        serviceData.partialTimestamp = Conversion.uint8_array_to_uint16([data[12], data[13]])
         serviceData.uniqueIdentifier = serviceData.partialTimestamp
         
         if serviceData.timeIsSet:
             serviceData.timestamp = reconstructTimestamp(time.time(), serviceData.partialTimestamp)
         else:
             serviceData.timestamp = serviceData.partialTimestamp # this is now a counter
+
+        globalBitmaskArray = Conversion.uint8_to_bit_array(data[14])
+        serviceData.behaviourEnabled = globalBitmaskArray[0]
         
-        
-        serviceData.validation = data[16]
+        serviceData.validation = data[15]
 
     
 

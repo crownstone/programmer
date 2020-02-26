@@ -1,3 +1,4 @@
+from getPinLayout import ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING
 from util import path
 
 import signal,time, asyncio, sys, random
@@ -177,6 +178,8 @@ class TestRunner:
             if await self.checkLowPowerState() is False:
                 return
 
+            # extra await to ensure the firmware decides that the dimmer can be used.
+            await self._quickSleeper(ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING)
 
             if await self.igbtsOn() is False:
                 return

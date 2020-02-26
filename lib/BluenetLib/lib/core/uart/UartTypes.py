@@ -22,14 +22,13 @@ class UartTxType(IntEnum):
 	POWER_LOG_FILTERED_CURRENT =       10202
 	POWER_LOG_FILTERED_VOLTAGE =       10203
 	POWER_LOG_CALCULATED_POWER =       10204
+	MOCK_INTERNAL_EVT =                10300 # Send events over crownstone-internal bus, this protocol may change
 
 class UartRxType(IntEnum):
 	ACK =                              0
 	SERVICE_DATA =                     2
 	UART_MESSAGE =                     3
-	MESH_STATE_0 =                     100   # For 1st handle, next handle has opCode of 1 larger.
-	MESH_STATE_1 =                     101   # Second state handle
-	MESH_STATE_LAST =                  101   # Last state handle
+	MESH_SERVICE_DATA =                102
 
 	ADVERTISING_ENABLED =              10000
 	MESH_ENABLED =                     10001
@@ -47,3 +46,4 @@ class UartRxType(IntEnum):
 	
 	
 	ASCII_LOG =               		   20000
+	FIRMWARESTATE =                    20001

@@ -250,4 +250,8 @@ class BleHandler:
         
     def _loadNotificationResult(self, result):
         self.notificationResult = result
+
+
+    def broadcast(self):
+        pass
     

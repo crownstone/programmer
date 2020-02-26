@@ -1,4 +1,5 @@
 from BluenetLib.lib.constants import ScanBackends
+from BluenetLib.lib.core.bluenet_modules.BroadcastHandler import BroadcastHandler
 from BluenetLib.lib.core.modules.Gatherer import Gatherer
 from BluenetLib.lib.core.modules.NormalModeChecker import NormalModeChecker
 from BluenetLib.lib.core.modules.RssiChecker import RssiChecker
@@ -20,11 +21,12 @@ from BluenetLib.lib.topics.Topics import Topics
 class BluetoothCore:
     
     def __init__(self, hciIndex = 0, scanBackend = ScanBackends.Bluepy):
-        self.settings = BluenetSettings()
-        self.control  = ControlHandler(self)
-        self.setup    = SetupHandler(self)
-        self.state    = StateHandler(self)
-        self.ble      = BleHandler(self.settings, hciIndex, scanBackend)
+        self.settings  = BluenetSettings()
+        self.control   = ControlHandler(self)
+        self.broadcast = BroadcastHandler(self, hciIndex)
+        self.setup     = SetupHandler(self)
+        self.state     = StateHandler(self)
+        self.ble       = BleHandler(self.settings, hciIndex, scanBackend)
         
     def shutDown(self):
         self.ble.shutDown()

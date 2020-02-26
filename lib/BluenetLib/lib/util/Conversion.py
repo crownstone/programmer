@@ -33,12 +33,21 @@ class Conversion:
 		return res
 
 	@staticmethod
+	def int32_to_uint32(val):
+		""" Convert an int32 to a uint32 """
+		res = val
+		if res < 0:
+			res += 4294967296
+		return res
+
+	@staticmethod
 	def int8_to_uint8(byte):
 		"""	Convert a signed byte to an unsigned byte """
 		res = byte
 		if res < 0:
 			res += 256
 		return res
+
 
 	#######################################
 	# Conversions between uint8 and float #
@@ -80,6 +89,11 @@ class Conversion:
 		]
 
 	@staticmethod
+	def uint8_to_uint8_array(value):
+		""" Convert a number into an array of 1 bytes. """
+		return [ value & 0xFF ]
+
+	@staticmethod
 	def uint8_array_to_uint16_array(arr8):
 		"""	Convert a uint8 array to a uint16 array	"""
 		arr16 = []
@@ -111,20 +125,22 @@ class Conversion:
 		return (arr8[3] << 24) + (arr8[2] << 16) + (arr8[1] << 8) + arr8[0]
 
 	@staticmethod
-	def uint8_array_to_int32(arr8):
+	def uint8_array_to_uint64(arr8):
 		""" Convert an array of 4 bytes to a uint32 """
-		return Conversion.uint32_to_int32(Conversion.uint8_array_to_uint32(arr8))
+		return (arr8[7] << 56) + \
+			   (arr8[6] << 48) + \
+			   (arr8[5] << 40) + \
+			   (arr8[4] << 32) + \
+			   (arr8[3] << 24) + \
+			   (arr8[2] << 16) + \
+			   (arr8[1] << 8) + \
+			   arr8[0]
 
 
 	@staticmethod
-	def uint32_to_uint8_array(value):
-		""" Convert a number into an array of 4 bytes. """
-		return [
-			(value >> 0 & 0xFF),
-			(value >> 8 & 0xFF),
-			(value >> 16 & 0xFF),
-			(value >> 24 & 0xFF)
-		]
+	def uint8_array_to_int32(arr8):
+		""" Convert an array of 4 bytes to a uint32 """
+		return Conversion.uint32_to_int32(Conversion.uint8_array_to_uint32(arr8))
 
 	@staticmethod
 	def uint8_array_to_uint32_array(arr8):
@@ -136,12 +152,43 @@ class Conversion:
 		return arr32
 
 	@staticmethod
+	def uint32_to_uint8_array(value):
+		""" Convert a number into an array of 4 bytes. """
+		return [
+			(value >> 0 & 0xFF),
+			(value >> 8 & 0xFF),
+			(value >> 16 & 0xFF),
+			(value >> 24 & 0xFF)
+		]
+	@staticmethod
+	def int32_to_uint8_array(value):
+		""" Convert a number into an array of 4 bytes. """
+		return Conversion.uint32_to_uint8_array(Conversion.int32_to_uint32(value))
+
+	@staticmethod
+	def uint64_to_uint8_array(value):
+		""" Convert a number into an array of 8 bytes. (little endian) """
+		return [ value >> 8*i & 0xFF for i in range(8)]
+
+	@staticmethod
 	def uint32_array_to_uint8_array(arr32):
 		"""	Convert a uint32 array to a byte array """
 		arr8 = []
 		for val in arr32:
 			arr8.extend(Conversion.uint32_to_uint8_array(val))
 		return arr8
+
+
+	@staticmethod
+	def uint32_to_uint16_reversed_array(uint32):
+		return [
+			uint32 >> 16,
+			(uint32 >> 0) % (0xFFFF + 1),
+		]
+
+	@staticmethod
+	def uint16_reversed_array_to_uint32(uint16Array):
+		return uint16Array[1] + (uint16Array[0] * (0xFFFF + 1))
 
 
 	##############################
@@ -310,6 +357,18 @@ class Conversion:
 
 
 	@staticmethod
+	def bit_array_to_010_array(bitArray):
+		result = [0] * len(bitArray)
+
+		for i in range(0,len(bitArray)):
+			if bitArray[i]:
+				result[i] = 1
+
+		return result
+
+
+
+	@staticmethod
 	def uint8_to_bit_array(val):
 		result = [False, False, False, False, False, False, False, False]
 		
@@ -325,7 +384,17 @@ class Conversion:
 		result[7] = (val & (one << 7)) != 0
 		
 		return result
-	
+
+	@staticmethod
+	def uint16_to_bit_array(val):
+		result = [False] * 16
+		one = 1
+
+		for i in range(0, 16):
+			result[i] = (val & (one << 15 - i)) != 0
+
+		return result
+
 	@staticmethod
 	def uint32_to_bit_array(val):
 		result = [False] * 32

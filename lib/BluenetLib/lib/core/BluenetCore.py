@@ -9,7 +9,7 @@ from BluenetLib.lib.core.uart.UartTypes import UartTxType
 from BluenetLib.lib.core.uart.UartWrapper import UartWrapper
 from BluenetLib.lib.dataFlowManagers.StoneManager import StoneManager
 from BluenetLib.lib.protocol.BlePackets import ControlPacket
-from BluenetLib.lib.protocol.BluenetTypes import IntentType, MeshMultiSwitchType, ControlType
+from BluenetLib.lib.protocol.BluenetTypes import ControlType
 from BluenetLib.lib.protocol.MeshPackets import StoneMultiSwitchPacket, MeshMultiSwitchPacket
 from BluenetLib.lib.topics.SystemTopics import SystemTopics
 
@@ -96,13 +96,13 @@ class BluenetCore:
         correctedValue = min(1,max(0,value))
 
         # create a stone switch state packet to go into the multi switch
-        stoneSwitchPacket     = StoneMultiSwitchPacket(crownstoneId, correctedValue, 0, IntentType.MANUAL)
+        stoneSwitchPacket     = StoneMultiSwitchPacket(crownstoneId, correctedValue)
 
         # wrap it in a mesh multi switch packet
-        meshMultiSwitchPacket = MeshMultiSwitchPacket(MeshMultiSwitchType.SIMPLE_LIST, [stoneSwitchPacket]).getPacket()
+        meshMultiSwitchPacket = MeshMultiSwitchPacket([stoneSwitchPacket]).getPacket()
 
         # wrap that in a control packet
-        controlPacket         = ControlPacket(ControlType.MESH_MULTI_SWITCH).loadByteArray(meshMultiSwitchPacket).getPacket()
+        controlPacket         = ControlPacket(ControlType.MULTISWITCH).loadByteArray(meshMultiSwitchPacket).getPacket()
 
         # finally wrap it in an Uart packet
         uartPacket            = UartWrapper(UartTxType.CONTROL, controlPacket).getPacket()

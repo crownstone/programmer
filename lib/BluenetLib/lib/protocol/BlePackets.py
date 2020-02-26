@@ -33,19 +33,26 @@ class BLEPacket:
         self.payload = Conversion.uint32_to_uint8_array(uint32)
         return self._process()
 
+    def loadFloat(self, float):
+        self.payload = Conversion.float_to_uint8_array(float)
+        return self._process()
+
     def loadByteArray(self, byteArray):
         self.payload = byteArray
         return self._process()
 
+    def appendByteArray(self, byteArray):
+        self.payload += byteArray
+        return self._process()
 
     def _process(self):
+        self.length = len(self.payload)
         self.lengthAsUint8Array = Conversion.uint16_to_uint8_array(len(self.payload))
         return self
 
     def getPacket(self):
         packet = []
-        packet.append(self.type)
-        packet.append(0)          # reserved
+        packet += Conversion.uint16_to_uint8_array(self.type)
         packet += self.lengthAsUint8Array
         packet += self.payload
 
@@ -57,30 +64,6 @@ class ControlPacket(BLEPacket):
         super().__init__(packetType)
 
 
-    def getPacket(self):
-        packet = []
-        
-        packet.append(self.type)
-        packet.append(0)
-        packet += self.lengthAsUint8Array
-        packet += self.payload
-        
-        return packet
-
-
-
-class keepAliveStatePacket(ControlPacket):
-    def __init__(self, action, state, timeout):
-        packet = []
-        packet.append(action)
-        packet.append(state)
-        timeoutByteArray = Conversion.uint16_to_uint8_array(timeout)
-        packet += timeoutByteArray
-
-        super().__init__(ControlType.KEEP_ALIVE_STATE)
-        self.loadByteArray(packet)
-
-
 
 
 class FactoryResetPacket(ControlPacket):
@@ -89,53 +72,37 @@ class FactoryResetPacket(ControlPacket):
         super().__init__(ControlType.FACTORY_RESET)
         self.loadUInt32(0xdeadbeef)
 
+class ControlStateGetPacket(ControlPacket):
 
+    def __init__(self, stateType, id = 0):
+        super().__init__(ControlType.GET_STATE)
+        self.id = id
+        self.loadUInt16(stateType)
 
-class ReadConfigPacket(BLEPacket):
-    def getOpCode(self):
-        return OpCode.READ
 
     def getPacket(self):
-        packet = []
-        packet.append(self.type)
-        packet.append(self.getOpCode().value)
-        packet += self.lengthAsUint8Array
-        packet += self.payload
-        return packet
-
-class WriteConfigPacket(ReadConfigPacket):
-    def getOpCode(self):
-        return OpCode.WRITE
+        arr = []
+        arr += Conversion.uint16_to_uint8_array(self.type)
+        arr += Conversion.uint16_to_uint8_array(self.length + 2) # 2 for the ID size
+        arr += self.payload # this is the state type
+        arr += Conversion.uint16_to_uint8_array(self.id)
+        return arr
 
 
+class ControlStateSetPacket(ControlPacket):
 
-class ReadStatePacket(BLEPacket):
-    def getOpCode(self):
-        return OpCode.READ
+    def __init__(self, stateType, id=0):
+        super().__init__(ControlType.SET_STATE)
+        self.stateType = stateType
+        self.id = id
+
 
     def getPacket(self):
-        packet = []
-        packet.append(self.type)
-        packet.append(self.getOpCode().value)
-        packet += self.lengthAsUint8Array
-        packet += self.payload
-        return packet
-
-
-class WriteStatePacket(ReadStatePacket):
-    def getOpCode(self):
-        return OpCode.WRITE
-
-
-class NotificationStatePacket(ReadStatePacket):
-    def __init__(self, packetType, subscribe):
-        super().__init__(packetType)
-        if subscribe:
-            self.loadUInt8(1)
-        else:
-            self.loadUInt8(0)
-
-    def getOpCode(self):
-        return OpCode.NOTIFY
-
+        arr = []
+        arr += Conversion.uint16_to_uint8_array(self.type)
+        arr += Conversion.uint16_to_uint8_array(self.length + 4) # the + 2 is for the stateType uint16 and +2 for the id
+        arr += Conversion.uint16_to_uint8_array(self.stateType)
+        arr += Conversion.uint16_to_uint8_array(self.id)
+        arr += self.payload
+        return arr
 

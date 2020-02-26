@@ -3,7 +3,7 @@ import random
 import math
 import pyaes
 
-from BluenetLib.Exceptions import BluenetBleException, BleError
+from BluenetLib.Exceptions import BluenetBleException, BleError, BluenetError
 from BluenetLib.lib.core.modules.BluenetSettings import UserLevel
 from BluenetLib.lib.util.Conversion import Conversion
 
@@ -258,7 +258,33 @@ class EncryptionHandler:
             IV[i + PACKET_NONCE_LENGTH] = sessionData[i]
             
         return IV
-    
+
+    """
+     * This method is used to encrypt data with the CTR method and wrap the envelope around it according to protocol V5
+    """
+    @staticmethod
+    def encryptBroadcast(dataArray, key, IV, validationNonce):
+        IV = IV + [0] * (NONCE_LENGTH - len(IV))
+
+        # create buffer that is zero padded
+        paddedPayload = [0] * BLOCK_LENGTH
+
+        # fill the payload with the key and the data
+        for i in range(0, SESSION_KEY_LENGTH):
+            paddedPayload[i] = validationNonce[i]
+
+        for i in range(0, len(dataArray)):
+            paddedPayload[i + SESSION_KEY_LENGTH] = dataArray[i]
+
+        stringPayload = "".join(chr(b) for b in paddedPayload)
+
+        aes = pyaes.AESModeOfOperationCTR(key, counter=IVCounter(IV))
+
+        encryptedData = aes.encrypt(stringPayload)
+
+        return encryptedData
+
+
     
 class IVCounter(object):
     """

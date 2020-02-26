@@ -71,44 +71,35 @@ class MeshCommandPacket:
 
 
 class StoneMultiSwitchPacket:
-    timeout = 0
     crownstoneId = 0
     state = 0
-    intent = 0
 
-    def __init__(self, crownstoneId, state, timeout, intent):
+    def __init__(self, crownstoneId, state):
         """
         :param crownstoneId:
         :param state:  number [0..1]
-        :param timeout:
-        :param intent: intentType
+
         """
         self.crownstoneId = crownstoneId
         self.state = int(min(1, max(0, state)) * 100) # map to [0 .. 100]
-        self.timeout = timeout
-        self.intent = intent.value
+
 
     def getPacket(self):
         packet = []
         packet.append(self.crownstoneId)
         packet.append(self.state)
-        packet += Conversion.uint16_to_uint8_array(self.timeout)
-        packet.append(self.intent)
 
         return packet
 
 
 class MeshMultiSwitchPacket:
-    type = 0
     packets = []
 
-    def __init__(self, packetType, packets):
-        self.type = packetType.value
+    def __init__(self, packets):
         self.packets = packets
 
     def getPacket(self):
         packet = []
-        packet.append(self.type)
         packet.append(len(self.packets))
         for stonePacket in self.packets:
             packet += stonePacket.getPacket()

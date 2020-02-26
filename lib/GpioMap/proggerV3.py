@@ -73,6 +73,6 @@ for gpio in displayGpio:
 # get array of pins
 p_LED_PIN = p_GPIO_TO_PIN[p_BOARD_TO_GPIO["LED"]]
 
-p_GET_LID_OPEN_FROM_GPIO = lambda x : not x
+p_GET_LID_OPEN_FROM_GPIO = lambda x : x
 
-p_ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING = 0.2
+p_ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING = 50

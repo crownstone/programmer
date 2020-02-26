@@ -1,4 +1,4 @@
-from BluenetLib.lib.protocol.BlePackets import ControlPacket, FactoryResetPacket, keepAliveStatePacket
+from BluenetLib.lib.protocol.BlePackets   import ControlPacket, FactoryResetPacket
 from BluenetLib.lib.protocol.BluenetTypes import ControlType
 
 from BluenetLib.lib.util.Conversion import Conversion
@@ -10,15 +10,6 @@ class ControlPacketsGenerator:
 	def getFactoryResetPacket():
 		return Conversion.uint32_to_uint8_array(0xdeadbeef)
 
-
-	@staticmethod
-	def getSetSchedulePacket(data):
-		return ControlPacket(ControlType.SCHEDULE_ENTRY).loadByteArray(data).getPacket()
-
-
-	@staticmethod
-	def getScheduleRemovePacket(timerIndex):
-		return ControlPacket(ControlType.SCHEDULE_REMOVE).loadUInt8(timerIndex).getPacket()
 
 	@staticmethod
 	def getCommandFactoryResetPacket():
@@ -63,24 +54,6 @@ class ControlPacketsGenerator:
 
 		return ControlPacket(ControlType.PWM).loadUInt8(convertedSwitchState).getPacket()
 
-	@staticmethod
-	def getKeepAliveStatePacket(changeState, switchState, timeout):
-		"""
-		:param changeState:
-		:param switchState:
-		:param timeout:
-		"""
-		convertedSwitchState = int(min(1, max(0, switchState)) * 100)
-
-		actionState = 0
-		if changeState:
-			actionState = 1
-
-		return keepAliveStatePacket(actionState, convertedSwitchState, timeout).getPacket()
-
-	@staticmethod
-	def getKeepAliveRepeatPacket():
-		return ControlPacket(ControlType.KEEP_ALIVE_REPEAT).getPacket()
 
 	@staticmethod
 	def getResetErrorPacket(errorMask):
@@ -124,70 +97,22 @@ class ControlPacketsGenerator:
 
 		return ControlPacket(ControlType.LOCK_SWITCH).loadUInt8(lockByte).getPacket()
 	
-	@staticmethod
-	def getSwitchCraftPacket(enabled):
-		"""
-        :param enabled: bool
-        :return:
-        """
-		
-		enabledValue = 0
-		if enabled:
-			enabledValue = 1
-		
-		return ControlPacket(ControlType.ENABLE_SWITCHCRAFT).loadUInt8(enabledValue).getPacket()
-
-
-	
-	@staticmethod
-	def getSetupPacket(commandType, crownstoneId, adminKey, memberKey, basicKey, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor):
-		"""
-		:param commandType:      	uint8 number
-		:param crownstoneId:  		uint8 number
-		:param adminKey:      		byteString (no conversion required)
-		:param memberKey:     		byteString (no conversion required)
-		:param basicKey:      		byteString (no conversion required)
-		:param meshAccessAddress: 	hexstring
-		:param ibeaconUUID: 		string  (ie. "1843423e-e175-4af0-a2e4-31e32f729a8a")
-		:param ibeaconMajor:        uint16 number
-		:param ibeaconMinor:        uint16 number
-		:return:
-		"""
-		data = []
-		data.append(commandType)
-		data.append(crownstoneId)
-
-		data += list(adminKey)
-		data += list(memberKey)
-		data += list(basicKey)
-
-		if type(meshAccessAddress) is str:
-			data += Conversion.hex_string_to_uint8_array(meshAccessAddress)
-		else:
-			data += Conversion.uint32_to_uint8_array(meshAccessAddress)
-
-		data += Conversion.ibeaconUUIDString_to_reversed_uint8_array(ibeaconUUID)
-		data += Conversion.uint16_to_uint8_array(ibeaconMajor)
-		data += Conversion.uint16_to_uint8_array(ibeaconMinor)
-
-		return ControlPacket(ControlType.SETUP).loadByteArray(data).getPacket()
-
 
 	@staticmethod
-	def getSetupPacketV2(
-			crownstoneId,
-			sphereId,
-			adminKey,
-			memberKey,
-			basicKey,
-			serviceDataKey,
-			localizationKey,
-			meshDeviceKey,
-			meshAppKey,
-			meshNetworkKey,
-			ibeaconUUID,
-			ibeaconMajor,
-			ibeaconMinor
+	def getSetupPacket(
+		crownstoneId,
+		sphereId,
+		adminKey,
+		memberKey,
+		basicKey,
+		serviceDataKey,
+		localizationKey,
+		meshDeviceKey,
+		meshAppKey,
+		meshNetworkKey,
+		ibeaconUUID,
+		ibeaconMajor,
+		ibeaconMinor
 	):
 		"""
 		:param crownstoneId:  		uint8 number

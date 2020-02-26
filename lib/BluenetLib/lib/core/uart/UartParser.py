@@ -2,6 +2,8 @@ import sys
 
 import time
 
+from BluenetLib.lib.core.uart.uartPackets.StoneStatePacket import StoneStatePacket
+
 from BluenetLib.lib.packets.ServiceData import ServiceData
 
 from BluenetLib.lib.core.uart.UartTypes import UartRxType
@@ -28,15 +30,16 @@ class UartParser:
         parsedData = None
 #        print("UART - opCode:", opCode, "payload:", dataPacket.payload)
 
-        if opCode == UartRxType.MESH_STATE_0 or opCode == UartRxType.MESH_STATE_1:
-            # unpack the mesh packet
-            meshPacket = MeshStatePacket(dataPacket.payload)
-            
-            # have each stone in the meshPacket broadcast it's state
-            for stoneState in meshPacket.stoneStates:
-                stoneState.broadcastState()
-                
+        if opCode == UartRxType.MESH_SERVICE_DATA:
+            # data type + service data (15b)
+            serviceData = ServiceData(dataPacket.payload, unencrypted=True)
+            statePacket = StoneStatePacket(serviceData)
+            statePacket.broadcastState()
+            # if serviceData.validData:
+            #     BluenetEventBus.emit(DevTopics.newServiceData, serviceData.getDictionary())
+
         elif opCode == UartRxType.SERVICE_DATA:
+            # service data type + device type + data type + service data (15b)
             serviceData = ServiceData(dataPacket.payload)
             if serviceData.validData:
                 BluenetEventBus.emit(DevTopics.newServiceData, serviceData.getDictionary())
@@ -46,12 +49,12 @@ class UartParser:
             BluenetEventBus.emit(DevTopics.ownCrownstoneId, id)
 
         elif opCode == UartRxType.MAC_ADDRESS:
-            if (len(dataPacket.payload) == 7):
+            if len(dataPacket.payload) == 7:
                 # Bug in old firmware (2.1.4 and lower) sends an extra byte.
                 addr = Conversion.uint8_array_to_address(dataPacket.payload[0:-1])
             else:
                 addr = Conversion.uint8_array_to_address(dataPacket.payload)
-            if (addr is not ""):
+            if addr is not "":
                 BluenetEventBus.emit(DevTopics.ownMacAddress, addr)
             else:
                 print("invalid address:", dataPacket.payload)
@@ -103,6 +106,9 @@ class UartParser:
             # logStr = "LOG: %15.3f - %s" % (time.time(), stringResult)
             # print(logStr)
             BluenetEventBus.emit(UsbTopics.uartMessage, {"string":stringResult, "data": dataPacket.payload})
+        elif opCode == UartRxType.FIRMWARESTATE:
+            # no need to process this, that's in the test suite.
+            pass
         else:
             print("Unknown OpCode", opCode)
 

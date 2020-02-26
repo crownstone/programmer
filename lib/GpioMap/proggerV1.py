@@ -15,13 +15,13 @@
 #                          -----------
 
 displayGpio = {
-   "T":  16,
-   "LT": 20,
-   "RT": 21,
-   "M":  19,
-   "LB": 13,
-   "RB": 12,
-   "B":  5,
+   "T":  True,
+   "LT": True,
+   "RT": True,
+   "M":  True,
+   "LB": True,
+   "RB": True,
+   "B":  True,
 }
 
 p_BOARD_TO_GPIO = {
@@ -65,3 +65,5 @@ for gpio in displayGpio:
 p_LED_PIN = p_GPIO_TO_PIN[p_BOARD_TO_GPIO["LED"]]
 
 p_GET_LID_OPEN_FROM_GPIO = lambda x : x
+
+p_ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING = 0.2

@@ -6,7 +6,7 @@ from BluenetLib.lib.util.EncryptionHandler import EncryptionHandler
 
 class ServiceData:
     
-    def __init__(self, data):
+    def __init__(self, data, unencrypted = False):
         self.opCode = 0
         self.dataType = 0
         self.crownstoneId = 0
@@ -21,7 +21,7 @@ class ServiceData:
         self.stateOfExternalCrownstone = False
         self.data = None
         self.dataString = ""
-        self.dimmingAvailable = False
+        self.dimmerReady = False
         self.dimmingAllowed = False
         self.hasError = False
         self.switchLocked = False
@@ -38,6 +38,10 @@ class ServiceData:
    
         self.validData = False
         self.dataReadyForUse = False  # decryption is successful if this is true
+
+        self.tapToToggleEnabled = False
+        self.behaviourEnabled = True
+        self.behaviourOverridden = False
     
         self.deviceType = DeviceType.UNDEFINED
         self.rssiOfExternalCrownstone = 0
@@ -46,35 +50,45 @@ class ServiceData:
         self.encryptedDataStartIndex = 0
         
         self.data = data
-        self.parse()
+        self.parse(unencrypted)
 
-    def parse(self):
+    def parse(self, unencrypted=False):
         self.validData = True
         if len(self.data) == 18:
             self.opCode = self.data[0]
             self.encryptedData = self.data[2:]
             self.encryptedDataStartIndex = 2
-            if self.opCode == 5 or self.opCode == 7:
-                parseOpCode5(self, self.data)
-            elif self.opCode == 6:
-                parseOpCode6(self, self.data)
-            else:
-                parseOpCode5(self, self.data)
-                
         elif len(self.data) == 17:
             self.opCode = self.data[0]
             self.encryptedData = self.data[1:]
             self.encryptedDataStartIndex = 1
-            if self.opCode == 3:
-                parseOpCode3(self, self.data)
-            elif self.opCode == 4:
-                parseOpCode4(self, self.data)
-            else:
-                parseOpCode3(self, self.data)
+        elif len(self.data) == 16 and unencrypted:
+            self.encryptedData = self.data
+            self.opCode = 7
         else:
             self.validData = False
+
+        if self.validData:
+            if self.opCode == 3:
+                parseOpCode3(self, self.encryptedData)
+            elif self.opCode == 4:
+                parseOpCode4(self, self.encryptedData)
+            elif self.opCode == 5 or self.opCode == 7:
+                self.getDeviceTypeFromPublicData()
+                parseOpCode5(self, self.encryptedData)
+            elif self.opCode == 6:
+                self.getDeviceTypeFromPublicData()
+                parseOpCode6(self, self.encryptedData)
+            else:
+                self.getDeviceTypeFromPublicData()
+                parseOpCode5(self, self.encryptedData)
             
-        
+    def getDeviceTypeFromPublicData(self):
+        if len(self.data) == 18:
+            if DeviceType.has_value(self.data[1]):
+                self.deviceType = type
+            else:
+                self.deviceType = DeviceType.undefined
 
     def isInSetupMode(self):
         if not self.validData:
@@ -102,10 +116,14 @@ class ServiceData:
         returnDict["powerUsageApparent"]        = self.powerUsageApparent
         returnDict["accumulatedEnergy"]         = self.accumulatedEnergy
         returnDict["timestamp"]                 = self.timestamp
-        returnDict["dimmingAvailable"]          = self.dimmingAvailable
+        returnDict["dimmerReady"]               = self.dimmerReady
         returnDict["dimmingAllowed"]            = self.dimmingAllowed
         returnDict["switchLocked"]              = self.switchLocked
         returnDict["switchCraftEnabled"]        = self.switchCraftEnabled
+        returnDict["tapToToggleEnabled"]        = self.tapToToggleEnabled
+        returnDict["behaviourEnabled"]          = self.behaviourEnabled
+        returnDict["behaviourOverridden"]       = self.behaviourOverridden
+
         returnDict["errorMode"]                 = self.errorMode
         returnDict["errors"]                    = errorsDictionary
     
@@ -131,7 +149,7 @@ class ServiceData:
         returnDict["powerUsageReal"] = self.powerUsageReal
         returnDict["powerUsageApparent"] = self.powerUsageApparent
         returnDict["accumulatedEnergy"] = self.accumulatedEnergy
-        returnDict["dimmingAvailable"] = self.dimmingAvailable
+        returnDict["dimmerReady"] = self.dimmerReady
         returnDict["dimmingAllowed"] = self.dimmingAllowed
         returnDict["switchLocked"] = self.switchLocked
         returnDict["switchCraftEnabled"] = self.switchCraftEnabled

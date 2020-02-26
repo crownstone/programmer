@@ -1,25 +1,24 @@
 from BluenetLib.lib.util.Conversion import Conversion
 
 def parseOpCode4_type0(serviceData, data):
-    if len(data) == 17:
-        # opCode   = data[0]
-        # dataType = data[1]
+    if len(data) == 16:
+        # dataType = data[0]
 
-        serviceData.switchState  = data[2]
-        serviceData.flagsBitmask = data[3]
+        serviceData.switchState  = data[1]
+        serviceData.flagsBitmask = data[2]
         
         # bitmask states
         bitmaskArray                 = Conversion.uint8_to_bit_array(serviceData.flagsBitmask)
-        serviceData.dimmingAvailable = bitmaskArray[0]
+        serviceData.dimmerReady = bitmaskArray[0]
         serviceData.dimmingAllowed   = bitmaskArray[1]
         serviceData.hasError         = bitmaskArray[2]
         serviceData.switchLocked     = bitmaskArray[3]
         serviceData.timeIsSet        = bitmaskArray[4]
         
-        serviceData.temperature  = Conversion.uint8_to_int8(data[4])
+        serviceData.temperature  = Conversion.uint8_to_int8(data[3])
         
-        powerFactor = Conversion.uint8_to_int8(data[5])
-        realPower = Conversion.uint16_to_int16(Conversion.uint8_array_to_uint16([data[6], data[7]]))
+        powerFactor = Conversion.uint8_to_int8(data[4])
+        realPower = Conversion.uint16_to_int16(Conversion.uint8_array_to_uint16([data[5], data[6]]))
 
         serviceData.powerFactor = float(powerFactor) / 127.0
         
@@ -35,11 +34,11 @@ def parseOpCode4_type0(serviceData, data):
         
         serviceData.accumulatedEnergy = Conversion.uint32_to_int32(
             Conversion.uint8_array_to_uint32([
+                data[7],
                 data[8],
                 data[9],
-                data[10],
-                data[11]
+                data[10]
             ])
         )
     
-        serviceData.uniqueIdentifier = data[12]
+        serviceData.uniqueIdentifier = data[11]

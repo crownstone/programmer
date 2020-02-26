@@ -36,7 +36,7 @@ class UartWrapper:
 		basePacket += Conversion.uint16_to_uint8_array(baseLength)
 		basePacket += self.payload
 
-		# calculate the CRC of the packet so far
+		# calculate the CRC of the packet so 
 		baseCrc = UartUtil.crc16_ccitt(basePacket)
 
 		# append the CRC to the base packet to escape the entire thing
@@ -50,7 +50,3 @@ class UartWrapper:
 		uartPacket += escapedPayload
 
 		return uartPacket
-
-
-
-		pass

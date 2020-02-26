@@ -20,11 +20,11 @@ l.start()
 
 
 
-# ar = ["B","LB","RB","M","LT","RT","T"]
-#
-# while True:
-#     for x in ar:
-#         print("showing", x)
-#         d.illuminateSlot([x])
-#         time.sleep(0.75)
-#     d.clearDisplay()
+ar = ["B","LB","RB","M","LT","RT","T"]
+
+while True:
+    for x in ar:
+        print("showing", x)
+        d.illuminateSlot([x])
+        time.sleep(0.75)
+    d.clearDisplay()
