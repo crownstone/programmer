@@ -8,5 +8,5 @@ Finally, use top to kill the python process.
 ```
 sudo top
 
-press control+v
+press shift+v
 ```

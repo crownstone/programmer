@@ -17,7 +17,7 @@ from BluenetLib.lib.topics.SystemTopics import SystemTopics
 
 class BluenetCore:
 
-    def __init__(self, catchSIGINT=True):
+    def __init__(self, catchSIGINT):
         self.uartBridge = None
         self.running = True
         self.stoneManager = StoneManager()
@@ -25,18 +25,18 @@ class BluenetCore:
         
         # listen for CTRL+C and handle the exit cleanly.
         if catchSIGINT:
-            signal.signal(signal.SIGINT, self.__stopAll)
+            signal.signal(signal.SIGINT, lambda source,frame: self.stop())
+
+
+    def __del__(self):
+        self.stop()
+
 
     def initializeUSB(self, port, baudrate=230400):
         # init the uart bridge
         self.uartBridge = UartBridge(port, baudrate)
         self.uartBridge.start()
 
-
-    def __stopAll(self, source, frame):
-        self.stop()
-        
-        
 
     def stop(self):
         print("Quitting BluenetLib...")

@@ -1,4 +1,4 @@
-from getPinLayout import ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING
+from getPinLayout import ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING, REQUIRED_RSSI
 from util import path
 
 import signal,time, asyncio, sys, random
@@ -25,7 +25,7 @@ import signal,time, asyncio, sys, random
 
 # flash Crownstone again
 
-from BluenetLib import Bluenet, BluenetEventBus, UsbTopics, Util
+from BluenetLib import Bluenet, BluenetEventBus, UsbTopics, Util, BluenetBleException
 from BluenetLib.BLE import BluenetBle
 from BluenetLib.lib.topics.DevTopics import DevTopics
 from DisplayBoard.DisplayDriver import DisplayDriver
@@ -149,7 +149,7 @@ class TestRunner:
             if await self.checkForSetupMode() is False:
                 return
 
-            if await self.getRssiAverage(-40) is False:
+            if await self.getRssiAverage(REQUIRED_RSSI) is False:
                 return
 
             await self.setupCrownstone()
@@ -159,8 +159,14 @@ class TestRunner:
             if await self.checkForNormalMode() is False:
                 return
 
-            if await self.getRssiAverage(-40) is False:
+            if await self.getRssiAverage(REQUIRED_RSSI) is False:
                 return
+
+            # power cycle relay
+            print(gt(), "----- Power cycle relay to avoid power measurement bug.")
+            self.relayOff()
+            await self._quickSleeper(2)
+            self.relayOn()
 
             if await self.checkIfLoadIsPowered(RELAY) is False:
                 return
@@ -179,7 +185,10 @@ class TestRunner:
                 return
 
             # extra await to ensure the firmware decides that the dimmer can be used.
+
+            print(gt(), "----- Waiting for dimmer circuit to power up...")
             await self._quickSleeper(ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING)
+            print(gt(), "----- Turn on the IGBTs")
 
             if await self.igbtsOn() is False:
                 return
@@ -365,6 +374,12 @@ class TestRunner:
             return False
 
 
+    def relayOn(self):
+        # UART --> Turn relay off
+        print(gt(), "----- Turn RELAY ON...")
+        self.bluenet._usbDev.toggleRelay(True)
+
+
     def relayOff(self):
         # UART --> Turn relay off
         print(gt(), "----- Turn RELAY OFF...")
@@ -438,20 +453,21 @@ class TestRunner:
         if not self.running:
             return False
 
-        # UART --> Get power measurement for the 3W (HIGH MATCH)
-        dWbetweenHighAndLow = 1.5
-
         print(gt(), "----- Getting measurement for IGBT's ON... attempt number ", attempt)
         measurement = await self.getPowerMeasurement(100)
+
+        dW_measure_high = abs(measurement["powerMeasurement"] - self.highPowerMeasurement)
+        dW_measure_low = abs(measurement["powerMeasurement"] - self.lowPowerMeasurement)
+        print("dW_measure_high > dW_measure_low", dW_measure_high, dW_measure_low)
         if measurement["powerMeasurement"] is None:
             await self.endInErrorCode(ErrorCodes.E_POWER_MEASUREMENT_NOT_WORKING)
             return False
         elif measurement["switchState"] != 100:
             await self.endInErrorCode(ErrorCodes.E_CAN_NOT_TURN_ON_IGBTS)
             return False
-        elif -dWbetweenHighAndLow < measurement["powerMeasurement"] - self.highPowerMeasurement < dWbetweenHighAndLow:
+        elif dW_measure_high < dW_measure_low:
             pass
-        elif -dWbetweenHighAndLow < measurement["powerMeasurement"] - self.lowPowerMeasurement < dWbetweenHighAndLow and attempt > 2:
+        elif dW_measure_high > dW_measure_low and attempt > 2:
             await self.endInErrorCode(ErrorCodes.E_IGBTS_NOT_WORKING)
             return False
         elif attempt > 2:
@@ -480,8 +496,11 @@ class TestRunner:
             err = sys.exc_info()[0]
             if type(sys.exc_info()[0]) is BTLEException:
                 print(gt(), "----- Crownstone might have failed to setup... BTLE", err.message, err.__str__())
+            elif type(sys.exc_info()[0]) is BluenetBleException:
+                print(gt(), "----- Crownstone might have failed to setup... BTLE", err.message, err.type, err.code)
             else:
                 print(gt(), "----- Crownstone might have failed to setup... checking...", err)
+
 
 
     async def _getMacAddress(self):

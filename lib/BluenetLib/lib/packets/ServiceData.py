@@ -88,7 +88,7 @@ class ServiceData:
             if DeviceType.has_value(self.data[1]):
                 self.deviceType = type
             else:
-                self.deviceType = DeviceType.undefined
+                self.deviceType = DeviceType.UNDEFINED
 
     def isInSetupMode(self):
         if not self.validData:

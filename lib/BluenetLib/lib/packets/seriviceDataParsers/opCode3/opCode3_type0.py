@@ -5,7 +5,7 @@ from BluenetLib.lib.util.Timestamp import reconstructTimestamp
 
 
 def parseOpCode3_type0(serviceData, data):
-    if len(data) == 17:
+    if len(data) == 16:
         # dataType = data[0]
         
         serviceData.stateOfExternalCrownstone = False
@@ -13,11 +13,11 @@ def parseOpCode3_type0(serviceData, data):
         serviceData.crownstoneId = data[1]
         serviceData.switchState  = data[2]
         serviceData.flagsBitmask = data[3]
-        
+
         # bitmask states
         bitmaskArray = Conversion.uint8_to_bit_array(serviceData.flagsBitmask)
         
-        serviceData.dimmerReady   = bitmaskArray[0]
+        serviceData.dimmerReady        = bitmaskArray[0]
         serviceData.dimmingAllowed     = bitmaskArray[1]
         serviceData.hasError           = bitmaskArray[2]
         serviceData.switchLocked       = bitmaskArray[3]

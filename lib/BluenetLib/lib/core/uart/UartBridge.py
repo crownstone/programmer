@@ -23,6 +23,8 @@ class UartBridge (threading.Thread):
         self.startSerial()
         threading.Thread.__init__(self)
 
+    def __del__(self):
+        self.stop()
 
     def run(self):
         self.eventId = BluenetEventBus.subscribe(SystemTopics.uartWriteData, self.writeToUart)

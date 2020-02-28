@@ -9,7 +9,7 @@ class ResultPacket:
         self.size = 0
         self.commandTypeUInt16 = 0
         self.resultCode = 0
-        self.valid = False
+        self.valid = True
 
         self.payload = []
         self.load(data)

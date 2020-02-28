@@ -28,7 +28,7 @@ class UartParser:
     def parse(self, dataPacket):
         opCode = dataPacket.opCode
         parsedData = None
-#        print("UART - opCode:", opCode, "payload:", dataPacket.payload)
+        # print("UART - opCode:", opCode, "payload:", dataPacket.payload)
 
         if opCode == UartRxType.MESH_SERVICE_DATA:
             # data type + service data (15b)

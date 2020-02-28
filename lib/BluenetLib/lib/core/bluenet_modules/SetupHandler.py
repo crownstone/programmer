@@ -28,7 +28,7 @@ class SetupHandler:
         self.handleSetupPhaseEncryption()
         self.core.ble.setupNotificationStream(
             CSServices.SetupService,
-            SetupCharacteristics.SetupControl,
+            SetupCharacteristics.Result,
             lambda: self._writeFastSetupV2(sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor),
             lambda notificationResult: self._handleResult(notificationResult),
             3
@@ -39,7 +39,7 @@ class SetupHandler:
 
 
     def _writeFastSetupV2(self, sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor):
-        packet = ControlPacketsGenerator.getSetupPacketV2(
+        packet = ControlPacketsGenerator.getSetupPacket(
             crownstoneId,
             sphereId,
             self.core.settings.adminKey,
@@ -57,23 +57,6 @@ class SetupHandler:
 
         print("BluenetBLE: Writing setup data to Crownstone...")
         self.core.ble.writeToCharacteristic(CSServices.SetupService, SetupCharacteristics.SetupControl, packet)
-
-    def _writeFastSetup(self, crownstoneId, meshAccessAddress, ibeaconUUID, ibeaconMajor, ibeaconMinor):
-        packet = ControlPacketsGenerator.getSetupPacket(
-            0,
-            crownstoneId,
-            self.core.settings.adminKey,
-            self.core.settings.memberKey,
-            self.core.settings.basicKey,
-            meshAccessAddress,
-            ibeaconUUID,
-            ibeaconMajor,
-            ibeaconMinor
-        )
-
-        print("BluenetBLE: Writing setup data to Crownstone...")
-        self.core.ble.writeToCharacteristic(CSServices.SetupService, SetupCharacteristics.SetupControl, packet)
-
 
     def _handleResult(self, result):
         response = ResultPacket(result)

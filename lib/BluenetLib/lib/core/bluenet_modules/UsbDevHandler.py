@@ -1,8 +1,8 @@
 from BluenetLib.lib.core.uart.UartTypes import UartTxType
 from BluenetLib.lib.core.uart.UartWrapper import UartWrapper
 from BluenetLib._EventBusInstance import BluenetEventBus
-from BluenetLib.lib.protocol.BlePackets import ControlPacket
-from BluenetLib.lib.protocol.BluenetTypes import ControlType
+from BluenetLib.lib.protocol.BlePackets import ControlPacket, ControlStateSetPacket
+from BluenetLib.lib.protocol.BluenetTypes import ControlType, StateType
 from BluenetLib.lib.topics.SystemTopics import SystemTopics
 
 
@@ -149,7 +149,7 @@ class UsbDevHandler:
         """
         if ((mode < 0) or (mode > 3)):
             return
-        controlPacket = ControlPacket(ControlType.UART_ENABLE).loadUInt8(mode).getPacket()
+        controlPacket = ControlStateSetPacket(StateType.UART_ENABLED).loadUInt8(mode).getPacket()
         self._send(UartWrapper(UartTxType.CONTROL, controlPacket).getPacket())
 
     def resetCrownstone(self):

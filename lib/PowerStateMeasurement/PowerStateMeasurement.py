@@ -1,7 +1,7 @@
 import time
 import RPi.GPIO as GPIO
 
-from getPinLayout import GPIO_TO_PIN, BOARD_TO_GPIO
+from getPinLayout import GPIO_TO_PIN, BOARD_TO_GPIO, OPTO_ON_STATE
 
 
 class PowerStateMeasurement:
@@ -9,8 +9,8 @@ class PowerStateMeasurement:
     input2 = GPIO_TO_PIN[BOARD_TO_GPIO["INPUT_2"]]
 
     def __init__(self):
-        self.last_zero_input1 = 0
-        self.last_zero_input2 = 0
+        self.last_ON_input1 = 0
+        self.last_ON_input2 = 0
 
         self.i1On = False
         self.i2On = False
@@ -32,25 +32,25 @@ class PowerStateMeasurement:
             i1 = GPIO.input(self.input1)
             i2 = GPIO.input(self.input2)
 
-            if i1 == 0:
+            if i1 == OPTO_ON_STATE:
                 self.i1On = True
-                self.last_zero_input1 = time.time()
+                self.last_ON_input1 = time.time()
 
-            if i2 == 0:
+            if i2 == OPTO_ON_STATE:
                 self.i2On = True
-                self.last_zero_input2 = time.time()
+                self.last_ON_input2 = time.time()
 
             t = time.time()
             time.sleep(1/222)
 
     def powerThroughI1(self):
-        res = time.time() - self.last_zero_input1 < 0.25
-        print("Power throughI1:", res, time.time() - self.last_zero_input1)
+        res = time.time() - self.last_ON_input1 < 0.25
+        print("Power throughI1:", res, time.time() - self.last_ON_input1)
         return res
 
     def powerThroughI2(self):
-        res = time.time() - self.last_zero_input2 < 0.25
-        print("Power throughI2:", res, time.time() - self.last_zero_input2)
+        res = time.time() - self.last_ON_input2 < 0.25
+        print("Power throughI2:", res, time.time() - self.last_ON_input2)
         return res
 
     def powerThroughLoad(self):
