@@ -186,8 +186,23 @@ class TestRunner:
 
             # extra await to ensure the firmware decides that the dimmer can be used.
 
-            print(gt(), "----- Waiting for dimmer circuit to power up...")
-            await self._quickSleeper(ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING)
+            print(gt(), "----- Waiting for dimmer circuit to power up...0%")
+            await self._quickSleeper(ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING / 8)
+            print(gt(), "----- Waiting for dimmer circuit to power up... 12.5%")
+            await self._quickSleeper(ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING / 8)
+            print(gt(), "----- Waiting for dimmer circuit to power up... 25%")
+            await self._quickSleeper(ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING / 8)
+            print(gt(), "----- Waiting for dimmer circuit to power up... 37.5%")
+            await self._quickSleeper(ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING / 8)
+            print(gt(), "----- Waiting for dimmer circuit to power up....50%")
+            await self._quickSleeper(ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING / 8)
+            print(gt(), "----- Waiting for dimmer circuit to power up... 62.5%")
+            await self._quickSleeper(ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING / 8)
+            print(gt(), "----- Waiting for dimmer circuit to power up... 75%")
+            await self._quickSleeper(ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING / 8)
+            print(gt(), "----- Waiting for dimmer circuit to power up... 87.5%")
+            await self._quickSleeper(ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING / 8)
+            print(gt(), "----- Waiting for dimmer circuit to power up... 100%")
             print(gt(), "----- Turn on the IGBTs")
 
             if await self.igbtsOn() is False:
@@ -456,26 +471,27 @@ class TestRunner:
         print(gt(), "----- Getting measurement for IGBT's ON... attempt number ", attempt)
         measurement = await self.getPowerMeasurement(100)
 
-        dW_measure_high = abs(measurement["powerMeasurement"] - self.highPowerMeasurement)
-        dW_measure_low = abs(measurement["powerMeasurement"] - self.lowPowerMeasurement)
-        print("dW_measure_high > dW_measure_low", dW_measure_high, dW_measure_low)
         if measurement["powerMeasurement"] is None:
             await self.endInErrorCode(ErrorCodes.E_POWER_MEASUREMENT_NOT_WORKING)
             return False
         elif measurement["switchState"] != 100:
             await self.endInErrorCode(ErrorCodes.E_CAN_NOT_TURN_ON_IGBTS)
             return False
-        elif dW_measure_high < dW_measure_low:
-            pass
-        elif dW_measure_high > dW_measure_low and attempt > 2:
-            await self.endInErrorCode(ErrorCodes.E_IGBTS_NOT_WORKING)
-            return False
-        elif attempt > 2:
-            await self.endInErrorCode(ErrorCodes.E_POWER_MEASUREMENT_NOT_WORKING)
-            return False
         else:
-            print("Received measurement", measurement["powerMeasurement"], "vs high", self.highPowerMeasurement, "vs low", self.lowPowerMeasurement)
-            return await self.verifyHighPowerState(attempt+1)
+            dW_measure_high = abs(measurement["powerMeasurement"] - self.highPowerMeasurement)
+            dW_measure_low = abs(measurement["powerMeasurement"] - self.lowPowerMeasurement)
+            print("dW_measure_high > dW_measure_low", dW_measure_high, dW_measure_low)
+            if dW_measure_high < dW_measure_low:
+                pass
+            elif dW_measure_high > dW_measure_low and attempt > 2:
+                await self.endInErrorCode(ErrorCodes.E_IGBTS_NOT_WORKING)
+                return False
+            elif attempt > 2:
+                await self.endInErrorCode(ErrorCodes.E_POWER_MEASUREMENT_NOT_WORKING)
+                return False
+            else:
+                print("Received measurement", measurement["powerMeasurement"], "vs high", self.highPowerMeasurement, "vs low", self.lowPowerMeasurement)
+                return await self.verifyHighPowerState(attempt+1)
 
 
     async def setupCrownstone(self):

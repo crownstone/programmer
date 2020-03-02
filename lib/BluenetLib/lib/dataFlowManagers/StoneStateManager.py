@@ -13,7 +13,7 @@ class StoneStateManager:
         stoneStatePacket = data[1]
 
         if stoneId in self.stones:
-            if self.stones[stoneId]["timestamp"] < stoneStatePacket.timestamp:
+            if self.stones[stoneId]["timestamp"] < stoneStatePacket.serviceData.timestamp:
                 self.stones[stoneId] = stoneStatePacket.getSummary()
                 self.emitNewData(stoneStatePacket)
         else:
