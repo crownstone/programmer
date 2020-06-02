@@ -1,10 +1,11 @@
+from crownstone_uart import CrownstoneUart
+
 from util import path
 
 import sys, time
-from BluenetLib import Bluenet, BluenetEventBus, UsbTopics, Util
 from util.util import programCrownstone, findUsbBleDongleHciIndex, findUartAddress
 
-bluenet = Bluenet(catchSIGINT=True)
+uart = CrownstoneUart()
 
 def initLibs():
     import traceback
@@ -13,7 +14,7 @@ def initLibs():
         if address == False:
             print("Could not find Crownstone")
         else:
-            bluenet.initializeUSB(address)  # TODO: get tty address dynamically
+            uart.initialize_usb_sync(address)
     except:
         print("----- ----- Error in settings UART Address", sys.exc_info()[0])
         traceback.print_exc()
@@ -24,7 +25,7 @@ def initLibs():
 def enableUart():
     # enable UART
     print("----- Enabling UART...")
-    bluenet._usbDev.setUartMode(3)
+    uart._usbDev.setUartMode(3)
 
 
 

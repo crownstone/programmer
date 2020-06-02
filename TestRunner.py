@@ -1,3 +1,4 @@
+
 from getPinLayout import ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING, REQUIRED_RSSI
 from util import path
 
@@ -25,9 +26,6 @@ import signal,time, asyncio, sys, random
 
 # flash Crownstone again
 
-from BluenetLib import Bluenet, BluenetEventBus, UsbTopics, Util, BluenetBleException
-from BluenetLib.BLE import BluenetBle
-from BluenetLib.lib.topics.DevTopics import DevTopics
 from DisplayBoard.DisplayDriver import DisplayDriver
 from DisplayBoard.LoadingRunner import LoadingRunner
 from lib.PowerStateMeasurement.PowerStateMeasurement import PowerStateMeasurement
@@ -73,8 +71,8 @@ class TestRunner:
     def __init__(self):
         self.loop = asyncio.new_event_loop()
 
-        self.bluenet = None
-        self.bluenetBLE = None
+        self.uart = None
+        self.ble = None
         self.loadingRunner = None
         self.running = True
         self.macAddress = None
@@ -116,11 +114,11 @@ class TestRunner:
 
 
     def cleanup(self):
-        if self.bluenet is not None:
-            self.bluenet.stop()
+        if self.uart is not None:
+            self.uart.stop()
 
-        if self.bluenetBLE is not None:
-            self.bluenetBLE.shutDown()
+        if self.ble is not None:
+            self.ble.shutDown()
 
 
     async def runTests(self):
@@ -248,14 +246,14 @@ class TestRunner:
 
     async def initLibs(self):
         import traceback
-        self.bluenet = Bluenet()
+        self.uart = CrownstoneUart()
         try:
             address = findUartAddress()
             if address == False:
                 await self.endInErrorCode(ErrorCodes.E_COULD_NOT_FIND_CROWNSTONE)
                 return False
             else:
-                self.bluenet.initializeUSB(address)
+                self.uart.initializeUSB(address)
         except:
             print(gt(), "----- ----- Error in settings UART Address", sys.exc_info()[0])
             traceback.print_exc()
@@ -263,8 +261,8 @@ class TestRunner:
             return False
 
         print(gt(), "----- Initializing Bluenet Libraries")
-        self.bluenetBLE = BluenetBle(hciIndex=findUsbBleDongleHciIndex())
-        self.bluenetBLE.setSettings(
+        self.ble = BluenetBle(hciIndex=findUsbBleDongleHciIndex())
+        self.ble.setSettings(
             adminKey=           "adminKeyForCrown",
             memberKey=          "memberKeyForHome",
             basicKey=           "guestKeyForOther",
@@ -278,7 +276,7 @@ class TestRunner:
     async def enableUart(self):
         # enable UART
         print(gt(), "----- Enabling UART...")
-        self.bluenet._usbDev.setUartMode(3)
+        self.uart._usbDev.setUartMode(3)
         await self._quickSleeper(0.75)
 
 
@@ -289,10 +287,10 @@ class TestRunner:
 
         print(gt(), "----- Checking Crownstone RSSI...")
         # BLE--> Check for advertisements in normal mode
-        average = self.bluenetBLE.getRssiAverage(self.macAddress, scanDuration=4)
+        average = self.ble.getRssiAverage(self.macAddress, scanDuration=4)
         if average is None:
             print(gt(), "----- Checking Crownstone RSSI... (again)")
-            average = self.bluenetBLE.getRssiAverage(self.macAddress, scanDuration=4)
+            average = self.ble.getRssiAverage(self.macAddress, scanDuration=4)
             if average is None:
                 await self.endInErrorCode(ErrorCodes.E_NO_BLE_SCAN_RECEIVED)
                 return False
@@ -319,7 +317,7 @@ class TestRunner:
 
         # BLE --> Scan for setup signal from said MAC address
         print(gt(), "----- Check if Crownstone is in setup Mode...")
-        inSetupMode = self.bluenetBLE.isCrownstoneInSetupMode(self.macAddress)
+        inSetupMode = self.ble.isCrownstoneInSetupMode(self.macAddress)
         if inSetupMode is None:
             await self.endInErrorCode(ErrorCodes.E_NO_BLE_SCAN_RECEIVED)
             return False
@@ -335,7 +333,7 @@ class TestRunner:
 
         print(gt(), "----- Checking if Crownstone is in normal mode...")
         # BLE--> Check for advertisements in normal mode
-        isInNormalMode = self.bluenetBLE.isCrownstoneInNormalMode(self.macAddress, scanDuration=5, waitUntilInRequiredMode=True)
+        isInNormalMode = self.ble.isCrownstoneInNormalMode(self.macAddress, scanDuration=5, waitUntilInRequiredMode=True)
         if isInNormalMode is None:
             await self.endInErrorCode(ErrorCodes.E_NO_BLE_SCAN_RECEIVED)
             return False
@@ -392,13 +390,13 @@ class TestRunner:
     def relayOn(self):
         # UART --> Turn relay off
         print(gt(), "----- Turn RELAY ON...")
-        self.bluenet._usbDev.toggleRelay(True)
+        self.uart._usbDev.toggleRelay(True)
 
 
     def relayOff(self):
         # UART --> Turn relay off
         print(gt(), "----- Turn RELAY OFF...")
-        self.bluenet._usbDev.toggleRelay(False)
+        self.uart._usbDev.toggleRelay(False)
 
 
     async def igbtsOn(self):
@@ -408,11 +406,11 @@ class TestRunner:
 
         # UART --> turn IGBTs on
         print(gt(), "----- Enabling Allow Dimming...")
-        self.bluenet._usbDev.toggleAllowDimming(True)
+        self.uart._usbDev.toggleAllowDimming(True)
         await self._quickSleeper(0.75)  # wait on write to CS storage of this new settings
 
         print(gt(), "----- Turning IGBT's ON...")
-        self.bluenet._usbDev.toggleIGBTs(True)
+        self.uart._usbDev.toggleIGBTs(True)
 
 
     async def checkIfLoadIsPowered(self, type):
@@ -498,7 +496,7 @@ class TestRunner:
         print(gt(), "----- Setting up Crownstone...")
         try:
             # BLE --> BLE fast setup --> THIS TURNS THE RELAY ON AUTOMATICALLY
-            self.bluenetBLE.setupCrownstone(
+            self.ble.setupCrownstone(
                 self.macAddress,
                 sphereId=1,
                 crownstoneId=TESTING_CROWNSTONE_ID,
@@ -526,7 +524,7 @@ class TestRunner:
             container[1] = data
 
         subscriptionId = BluenetEventBus.subscribe(DevTopics.ownMacAddress, lambda data: handleMessage(result, data))
-        self.bluenet._usbDev.requestMacAddress()
+        self.uart._usbDev.requestMacAddress()
 
         counter = 0
         while result[0] and counter < 50:
