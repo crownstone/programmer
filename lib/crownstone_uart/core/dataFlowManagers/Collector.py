@@ -19,6 +19,7 @@ class Collector:
         self.response = None
 
     async def receive(self):
+        self.response = None
         counter = 0
         while counter < self.timeout:
             if self.response is not None:

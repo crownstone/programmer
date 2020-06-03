@@ -14,7 +14,6 @@ class SetupHandler:
         self.core = bluetoothCore
 
     def setup(self, address, sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor):
-        characteristics = self.core.ble.getCharacteristics(CSServices.SetupService)
         try:
             self.fastSetupV2(sphereId, crownstoneId, meshDeviceKey, ibeaconUUID, ibeaconMajor, ibeaconMinor)
         except CrownstoneBleException as e:

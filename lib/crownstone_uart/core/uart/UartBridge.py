@@ -7,7 +7,7 @@ import serial.tools.list_ports
 from crownstone_core.protocol.BlePackets import ControlPacket
 from crownstone_core.protocol.BluenetTypes import ControlType
 
-from core.modules.UsbDevHandler import UsbDevHandler
+from crownstone_uart.core.modules.UsbDevHandler import UsbDevHandler
 from crownstone_uart.topics.UartTopics import UartTopics
 
 from crownstone_uart.core.UartEventBus import UartEventBus
@@ -43,7 +43,7 @@ class UartBridge (threading.Thread):
         # turn on UART in case that we're connecting a Crownstone instead of a dongle
         devHandler = UsbDevHandler()
         devHandler.setUartMode(3)
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(2)
         
         collector = Collector(timeout=0.2, topic=UartTopics.uartMessage)
         self.echo("HelloCrownstone")

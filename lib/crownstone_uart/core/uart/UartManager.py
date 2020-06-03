@@ -68,7 +68,8 @@ class UartManager:
         self._uartBridge.start()
         await self._uartBridge.starting()
 
-        success = await self._uartBridge.handshake()
+        # success = await self._uartBridge.handshake()
+        success = True
 
         if not success:
             print("Crownstone handshake failed. Moving on to next device...")
