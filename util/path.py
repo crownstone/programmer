@@ -20,11 +20,11 @@ for item in os.listdir(basePath):
             sys.path.append(basePath + "/" + item)
 
 
-# for item in os.listdir(basePath + "/vendor/"):
-#     if os.path.isdir(basePath + "/vendor/" + item):
-#         if item[0] != ".":
-#             # print("ADDING", basePath + "/vendor/" + item)
-#             sys.path.append(basePath + "/vendor/" + item)
+for item in os.listdir(basePath + "/vendor/"):
+    if os.path.isdir(basePath + "/vendor/" + item):
+        if item[0] != ".":
+            # print("ADDING", basePath + "/vendor/" + item)
+            sys.path.append(basePath + "/vendor/" + item)
 
 # add the stringified parent folder to the sys.path so our imports can be evaluated.
 

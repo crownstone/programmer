@@ -1,6 +1,11 @@
-
-from getPinLayout import ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING, REQUIRED_RSSI
 from util import path
+
+from lib.crownstone_ble.core.CrownstoneBle import CrownstoneBle
+from vendor.crownstone_core.Exceptions import CrownstoneBleException
+from vendor.crownstone_core.util import Util
+from lib.crownstone_uart import CrownstoneUart, UartEventBus
+from lib.crownstone_uart.topics.DevTopics import DevTopics
+from getPinLayout import ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING, REQUIRED_RSSI
 
 import signal,time, asyncio, sys, random
 
@@ -253,7 +258,7 @@ class TestRunner:
                 await self.endInErrorCode(ErrorCodes.E_COULD_NOT_FIND_CROWNSTONE)
                 return False
             else:
-                self.uart.initializeUSB(address)
+                await self.uart.initialize_usb(address)
         except:
             print(gt(), "----- ----- Error in settings UART Address", sys.exc_info()[0])
             traceback.print_exc()
@@ -261,7 +266,7 @@ class TestRunner:
             return False
 
         print(gt(), "----- Initializing Bluenet Libraries")
-        self.ble = BluenetBle(hciIndex=findUsbBleDongleHciIndex())
+        self.ble = CrownstoneBle(hciIndex=findUsbBleDongleHciIndex())
         self.ble.setSettings(
             adminKey=           "adminKeyForCrown",
             memberKey=          "memberKeyForHome",
@@ -500,7 +505,6 @@ class TestRunner:
                 self.macAddress,
                 sphereId=1,
                 crownstoneId=TESTING_CROWNSTONE_ID,
-                meshAccessAddress=Util.generateMeshAccessAddress(),
                 meshDeviceKey="itsMyDeviceKeyyy",
                 ibeaconUUID="1843423e-e175-4af0-a2e4-31e32f729a8a",
                 ibeaconMajor=123,
@@ -510,7 +514,7 @@ class TestRunner:
             err = sys.exc_info()[0]
             if type(sys.exc_info()[0]) is BTLEException:
                 print(gt(), "----- Crownstone might have failed to setup... BTLE", err.message, err.__str__())
-            elif type(sys.exc_info()[0]) is BluenetBleException:
+            elif type(sys.exc_info()[0]) is CrownstoneBleException:
                 print(gt(), "----- Crownstone might have failed to setup... BTLE", err.message, err.type, err.code)
             else:
                 print(gt(), "----- Crownstone might have failed to setup... checking...", err)
@@ -523,7 +527,7 @@ class TestRunner:
             container[0] = False
             container[1] = data
 
-        subscriptionId = BluenetEventBus.subscribe(DevTopics.ownMacAddress, lambda data: handleMessage(result, data))
+        subscriptionId = UartEventBus.subscribe(DevTopics.ownMacAddress, lambda data: handleMessage(result, data))
         self.uart._usbDev.requestMacAddress()
 
         counter = 0
@@ -531,7 +535,7 @@ class TestRunner:
             counter += 1
             await asyncio.sleep(0.05)
 
-        BluenetEventBus.unsubscribe(subscriptionId)
+        UartEventBus.unsubscribe(subscriptionId)
         return result[1]
 
 
@@ -547,7 +551,7 @@ class TestRunner:
                     # this will stop the measurement
                     container[0] = False
 
-        subscriptionId = BluenetEventBus.subscribe(DevTopics.newServiceData, lambda data: handleMessage(result, data))
+        subscriptionId = UartEventBus.subscribe(DevTopics.newServiceData, lambda data: handleMessage(result, data))
 
         counter = 0
         while result[0] and counter < 100:
@@ -557,7 +561,7 @@ class TestRunner:
         if counter >= 100:
             print(gt(), "----- Get Power Measurement: Timeout Expired")
 
-        BluenetEventBus.unsubscribe(subscriptionId)
+        UartEventBus.unsubscribe(subscriptionId)
         print(gt(), "----- Result in power measurement", result[1], "with switchState", result[2])
         return {"powerMeasurement":result[1], "switchState": result[2]}
 
