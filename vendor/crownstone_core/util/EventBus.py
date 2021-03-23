@@ -1,4 +1,5 @@
 import uuid
+from typing import Callable, Any
 
 class EventBus:
 
@@ -6,7 +7,18 @@ class EventBus:
         self.topics = {}
         self.subscriberIds = {}
 
-    def subscribe(self, topic: object, callback: object) -> object:
+
+    def once(self, topic: str, callback: Callable[[Any], None]) -> str:
+        def cleanup(bus, subId, data):
+            if subscriptionId in self.subscriberIds:
+                callback(data)
+            bus.unsubscribe(subId)
+
+        subscriptionId = self.subscribe(topic, lambda data: cleanup(self, subscriptionId, data))
+        return subscriptionId
+
+    def subscribe(self, topic: str, callback: Callable[[Any], None]) -> str:
+		# Returns a subscriptionId to be used to unsubscribe.
         if topic not in self.topics:
             self.topics[topic] = {}
 
@@ -16,16 +28,17 @@ class EventBus:
 
         return subscriptionId
 
-    def emit(self, topic, data = True):
+    def emit(self, topic: str, data: Any = None):
         if topic in self.topics:
-            for subscriptionId in self.topics[topic]:
+            callbackIds = list(self.topics[topic].keys())
+            for subscriptionId in callbackIds:
                 self.topics[topic][subscriptionId](data)
 
 
-    def unsubscribe(self, subscriptionId):
+    def unsubscribe(self, subscriptionId: str):
         if subscriptionId is None:
             return
-        
+
         if subscriptionId in self.subscriberIds:
             topic = self.subscriberIds[subscriptionId]
             if topic in self.topics:
@@ -34,5 +47,4 @@ class EventBus:
             self.subscriberIds.pop(subscriptionId)
         else:
             pass
-            #print("ERROR: BluenetEventBus: Subscription ID ", subscriptionId, " cannot be found.")
 

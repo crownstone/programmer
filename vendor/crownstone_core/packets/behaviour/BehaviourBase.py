@@ -4,8 +4,8 @@ from crownstone_core.packets.behaviour.ActiveDays import ActiveDays
 from crownstone_core.packets.behaviour.BehaviourTypes import BehaviourType, DAY_START_TIME_SECONDS_SINCE_MIDNIGHT
 from crownstone_core.packets.behaviour.PresenceDescription import BehaviourPresence
 from crownstone_core.packets.behaviour.TimeDescription import BehaviourTimeContainer, BehaviourTime, BehaviourTimeType
-from crownstone_core.util.DataStepper import DataStepper
-from crownstone_core.util.fletcher import fletcher32_uint8Arr
+from crownstone_core.util.BufferReader import BufferReader
+from crownstone_core.util.Fletcher import fletcher32_uint8Arr
 
 
 def DEFAULT_ACTIVE_DAYS():
@@ -41,7 +41,7 @@ class BehaviourBase:
         return self
 
     def setTimeAllday(self, dayStartTimeSecondsSinceMidnight=DAY_START_TIME_SECONDS_SINCE_MIDNIGHT):
-        self.fromTime  = BehaviourTime().fromType(BehaviourTimeType.afterMidnight,  dayStartTimeSecondsSinceMidnight),
+        self.fromTime  = BehaviourTime().fromType(BehaviourTimeType.afterMidnight,  dayStartTimeSecondsSinceMidnight)
         self.untilTime = BehaviourTime().fromType(BehaviourTimeType.afterMidnight, dayStartTimeSecondsSinceMidnight)
         return self
     
@@ -96,7 +96,7 @@ class BehaviourBase:
      """
 
     def fromData(self, data):
-        payload = DataStepper(data)
+        payload = BufferReader(data)
 
         firstByte = payload.getUInt8()
         if not BehaviourType.has_value(firstByte):
@@ -106,9 +106,9 @@ class BehaviourBase:
         self.behaviourType = BehaviourType(firstByte)
         self.intensity = payload.getUInt8()
         self.profileIndex = payload.getUInt8()
-        self.activeDays = ActiveDays().fromData(payload.getUInt8())
-        self.fromTime = BehaviourTime().fromData(payload.getAmountOfBytes(5))  # 4 5 6 7 8
-        self.untilTime = BehaviourTime().fromData(payload.getAmountOfBytes(5))  # 9 10 11 12 13
+        self.activeDays   = ActiveDays().fromData(payload.getUInt8())
+        self.fromTime     = BehaviourTime().fromData(payload.getBytes(5))  # 4 5 6 7 8
+        self.untilTime    = BehaviourTime().fromData(payload.getBytes(5))  # 9 10 11 12 13
 
         if self.fromTime.valid == False or self.untilTime.valid == False:
             self.valid = False
@@ -117,7 +117,7 @@ class BehaviourBase:
         if self.behaviourType == BehaviourType.behaviour:
             if payload.length >= 14 + 13:
                 self.presence = BehaviourPresence().fromData(
-                    payload.getAmountOfBytes(13))  # 14 15 16 17 18 19 20 21 22 23 24 25 26
+                    payload.getBytes(13))  # 14 15 16 17 18 19 20 21 22 23 24 25 26
                 if not self.presence.valid:
                     self.valid = False
                     return self
@@ -127,7 +127,7 @@ class BehaviourBase:
 
         if self.behaviourType == BehaviourType.smartTimer:
             if payload.length >= 14 + 13 + 17:
-                presence = BehaviourPresence().fromData(payload.getAmountOfBytes(17))
+                presence = BehaviourPresence().fromData(payload.getBytes(17))
                 if not presence.valid:
                     self.valid = False
                     return self
@@ -137,6 +137,7 @@ class BehaviourBase:
             else:
                 self.valid = False
                 return self
+
 
     def getPacket(self):
         arr = []
@@ -150,13 +151,8 @@ class BehaviourBase:
         arr += self.fromTime.getPacket()
         arr += self.untilTime.getPacket()
 
-        if self.presence is not None:
-            arr += self.presence.getPacket()
-
-        if self.endCondition is not None:
-            arr += self.endCondition.presence.getPacket()
-
         return arr
+
 
     def getHash(self):
         return fletcher32_uint8Arr(self._getPaddedPacket())

@@ -1,6 +1,7 @@
 from crownstone_core.protocol.BlePackets import ControlPacket, FactoryResetPacket
 from crownstone_core.protocol.BluenetTypes import ControlType
 from crownstone_core.util.Conversion import Conversion
+from crownstone_core.util.BufferWriter import BufferWriter
 
 
 class ControlPacketsGenerator:
@@ -15,14 +16,11 @@ class ControlPacketsGenerator:
 		return FactoryResetPacket().getPacket()
 
 	@staticmethod
-	def getSwitchStatePacket(switchState):
+	def getSwitchCommandPacket(switchVal: int):
 		"""
-		:param switchState: number [0..1]
+		:param switchVal: percentage [0..100] or special value (SwitchValSpecial).
 		"""
-
-		convertedSwitchState = int(min(1,max(0,switchState))*100)
-
-		return ControlPacket(ControlType.SWITCH).loadUInt8(convertedSwitchState).getPacket()
+		return ControlPacket(ControlType.SWITCH).loadUInt8(switchVal).getPacket()
 
 	@staticmethod
 	def getResetPacket():
@@ -37,21 +35,22 @@ class ControlPacketsGenerator:
 		return ControlPacket(ControlType.DISCONNECT).getPacket()
 
 	@staticmethod
-	def getRelaySwitchPacket(state):
+	def getRelaySwitchPacket(turnOn: bool):
 		"""
-		:param state: 0 or 1
+		:param turnOn: True to turn relay on.
 		"""
-		return ControlPacket(ControlType.RELAY).loadUInt8(state).getPacket()
+		switchVal = 0
+		if turnOn:
+			switchVal = 1
+
+		return ControlPacket(ControlType.RELAY).loadUInt8(switchVal).getPacket()
 
 	@staticmethod
-	def getPwmSwitchPacket(switchState):
+	def getDimmerSwitchPacket(intensity: int):
 		"""
-		:param switchState: number [0..1]
-		:return:
+		:param intensity: percentage [0..100]
 		"""
-		convertedSwitchState = int(min(1, max(0, switchState)) * 100)
-
-		return ControlPacket(ControlType.PWM).loadUInt8(convertedSwitchState).getPacket()
+		return ControlPacket(ControlType.PWM).loadUInt8(intensity).getPacket()
 
 
 	@staticmethod
@@ -70,7 +69,7 @@ class ControlPacketsGenerator:
 		return ControlPacket(ControlType.SET_TIME).loadUInt32(time).getPacket()
 
 	@staticmethod
-	def getAllowDimmingPacket(allow):
+	def getAllowDimmingPacket(allow: bool):
 		"""
 
 		:param allow: bool
@@ -84,7 +83,7 @@ class ControlPacketsGenerator:
 		return ControlPacket(ControlType.ALLOW_DIMMING).loadUInt8(allowByte).getPacket()
 
 	@staticmethod
-	def getLockSwitchPacket(lock):
+	def getLockSwitchPacket(lock: bool):
 		"""
 		:param lock: bool
 		:return:
@@ -95,12 +94,11 @@ class ControlPacketsGenerator:
 			lockByte = 1
 
 		return ControlPacket(ControlType.LOCK_SWITCH).loadUInt8(lockByte).getPacket()
-	
 
 	@staticmethod
 	def getSetupPacket(
-		crownstoneId,
-		sphereId,
+		crownstoneId: int,
+		sphereId: int,
 		adminKey,
 		memberKey,
 		basicKey,
@@ -109,9 +107,9 @@ class ControlPacketsGenerator:
 		meshDeviceKey,
 		meshAppKey,
 		meshNetworkKey,
-		ibeaconUUID,
-		ibeaconMajor,
-		ibeaconMinor
+		ibeaconUUID: str,
+		ibeaconMajor: int,
+		ibeaconMinor: int
 	):
 		"""
 		:param crownstoneId:  		uint8 number
@@ -163,4 +161,10 @@ class ControlPacketsGenerator:
 
 		return ControlPacket(ControlType.SET_IBEACON_CONFIG_ID).loadByteArray(data).getPacket()
 
-
+	@staticmethod
+	def getPowerSamplesRequestPacket(samplesType, index):
+		buffer = BufferWriter()
+		buffer.putUInt8(samplesType)
+		buffer.putUInt8(index)
+		data = buffer.getBuffer()
+		return ControlPacket(ControlType.GET_POWER_SAMPLES).loadByteArray(data).getPacket()

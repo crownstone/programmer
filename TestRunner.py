@@ -1,8 +1,9 @@
 from util import path
 
-from lib.crownstone_ble.core.CrownstoneBle import CrownstoneBle
+from crownstone_ble.Exceptions import BleError
+from vendor.crownstone_core.Enums import CrownstoneOperationMode
 from vendor.crownstone_core.Exceptions import CrownstoneBleException
-from vendor.crownstone_core.util import Util
+from lib.crownstone_ble.core.CrownstoneBle import CrownstoneBle
 from lib.crownstone_uart import CrownstoneUart, UartEventBus
 from lib.crownstone_uart.topics.DevTopics import DevTopics
 from getPinLayout import ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING, REQUIRED_RSSI
@@ -34,11 +35,9 @@ import signal,time, asyncio, sys, random
 from DisplayBoard.DisplayDriver import DisplayDriver
 from DisplayBoard.LoadingRunner import LoadingRunner
 from lib.PowerStateMeasurement.PowerStateMeasurement import PowerStateMeasurement
-from util.util import programCrownstone, findUsbBleDongleHciIndex, findUartAddress
+from util.util import programCrownstone, findUsbBleDongleHciIndex, findUartAddress, findUsbBleDongleHciAddress
 
 from enum import Enum
-
-from vendor.bluepy.btle import BTLEException
 
 IGBTs = 1
 RELAY = 2
@@ -266,7 +265,7 @@ class TestRunner:
             return False
 
         print(gt(), "----- Initializing Bluenet Libraries")
-        self.ble = CrownstoneBle(hciIndex=findUsbBleDongleHciIndex())
+        self.ble = CrownstoneBle(bleAdapterAddress=findUsbBleDongleHciAddress())
         self.ble.setSettings(
             adminKey=           "adminKeyForCrown",
             memberKey=          "memberKeyForHome",
@@ -292,10 +291,10 @@ class TestRunner:
 
         print(gt(), "----- Checking Crownstone RSSI...")
         # BLE--> Check for advertisements in normal mode
-        average = self.ble.getRssiAverage(self.macAddress, scanDuration=4)
+        average = await self.ble.getRssiAverage(self.macAddress, scanDuration=4)
         if average is None:
             print(gt(), "----- Checking Crownstone RSSI... (again)")
-            average = self.ble.getRssiAverage(self.macAddress, scanDuration=4)
+            average = await self.ble.getRssiAverage(self.macAddress, scanDuration=4)
             if average is None:
                 await self.endInErrorCode(ErrorCodes.E_NO_BLE_SCAN_RECEIVED)
                 return False
@@ -322,13 +321,24 @@ class TestRunner:
 
         # BLE --> Scan for setup signal from said MAC address
         print(gt(), "----- Check if Crownstone is in setup Mode...")
-        inSetupMode = self.ble.isCrownstoneInSetupMode(self.macAddress)
-        if inSetupMode is None:
-            await self.endInErrorCode(ErrorCodes.E_NO_BLE_SCAN_RECEIVED)
-            return False
-        elif not inSetupMode:
+        try:
+            operationMode = await self.ble.getMode(self.macAddress)
+            if operationMode == CrownstoneOperationMode.SETUP:
+                print(gt(), "----- Crownstone is in setup Mode.")
+                return True
+            else:
+                await self.endInErrorCode(ErrorCodes.E_NOT_SEEN_IN_SETUP_MODE)
+                return False
+        except CrownstoneBleException as err:
+            if err.type == BleError.NO_SCANS_RECEIVED:
+                await self.endInErrorCode(ErrorCodes.E_NO_BLE_SCAN_RECEIVED)
+                return False
+        except:
             await self.endInErrorCode(ErrorCodes.E_NOT_SEEN_IN_SETUP_MODE)
             return False
+
+
+
 
 
     async def checkForNormalMode(self):
@@ -338,15 +348,24 @@ class TestRunner:
 
         print(gt(), "----- Checking if Crownstone is in normal mode...")
         # BLE--> Check for advertisements in normal mode
-        isInNormalMode = self.ble.isCrownstoneInNormalMode(self.macAddress, scanDuration=5, waitUntilInRequiredMode=True)
-        if isInNormalMode is None:
-            await self.endInErrorCode(ErrorCodes.E_NO_BLE_SCAN_RECEIVED)
-            return False
-        elif not isInNormalMode:
+        try:
+            operationMode = await self.ble.getMode(self.macAddress)
+            if operationMode == CrownstoneOperationMode.NORMAL:
+                print(gt(), "----- Setup was successful. Crownstone is in normal mode")
+                return True
+            else:
+                await self.endInErrorCode(ErrorCodes.E_COULD_NOT_SETUP)
+                return False
+        except CrownstoneBleException as err:
+            if err.type == BleError.NO_SCANS_RECEIVED:
+                await self.endInErrorCode(ErrorCodes.E_NOT_SEEN_AT_ALL)
+                return False
+        except:
             await self.endInErrorCode(ErrorCodes.E_COULD_NOT_SETUP)
             return False
 
-        print(gt(), "----- Setup was successful. Crownstone is in normal mode")
+
+
 
 
     async def checkHighPowerState(self):
@@ -501,7 +520,7 @@ class TestRunner:
         print(gt(), "----- Setting up Crownstone...")
         try:
             # BLE --> BLE fast setup --> THIS TURNS THE RELAY ON AUTOMATICALLY
-            self.ble.setupCrownstone(
+            await self.ble.setupCrownstone(
                 self.macAddress,
                 sphereId=1,
                 crownstoneId=TESTING_CROWNSTONE_ID,
@@ -512,9 +531,7 @@ class TestRunner:
             )
         except:
             err = sys.exc_info()[0]
-            if type(sys.exc_info()[0]) is BTLEException:
-                print(gt(), "----- Crownstone might have failed to setup... BTLE", err.message, err.__str__())
-            elif type(sys.exc_info()[0]) is CrownstoneBleException:
+            if type(sys.exc_info()[0]) is CrownstoneBleException:
                 print(gt(), "----- Crownstone might have failed to setup... BTLE", err.message, err.type, err.code)
             else:
                 print(gt(), "----- Crownstone might have failed to setup... checking...", err)

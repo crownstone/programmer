@@ -35,10 +35,28 @@ def findUsbBleDongleHciIndex():
 
     for device in hciInfoArray:
         if "USB" in device:
+            print(device)
             break
         usbIndex += 1
 
     return usbIndex
+
+def findUsbBleDongleHciAddress():
+    import subprocess
+    from subprocess import Popen, PIPE
+    import re
+    regex = re.compile("Address: (.{17})")
+
+    session = subprocess.Popen(['hciconfig'], stdout=PIPE, stderr=PIPE)
+    stdout, stderr = session.communicate()
+    session.terminate()
+
+    hciInfoArray = str(stdout).split("hci")
+    hciInfoArray.pop(0)
+
+    for device in hciInfoArray:
+        if "USB" in device:
+            return regex.findall(device)[0]
 
 
 def programCrownstone():

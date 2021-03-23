@@ -1,92 +1,170 @@
 import asyncio
+import logging
+import threading
+import time
 
+from crownstone_core.protocol.BlePackets import ControlPacket
+from crownstone_core.protocol.BluenetTypes import ControlType
+
+from crownstone_uart.core.dataFlowManagers.Collector import Collector
+from crownstone_uart.core.uart.uartPackets.UartCommandHelloPacket import UartCommandHelloPacket
+from crownstone_uart.core.uart.uartPackets.UartCrownstoneHelloPacket import UartCrownstoneHelloPacket
+from crownstone_uart.core.uart.uartPackets.UartMessagePacket import UartMessagePacket
+
+from crownstone_uart.core.UartEventBus import UartEventBus
+from crownstone_uart.core.uart.uartPackets.UartWrapperPacket import UartWrapperPacket
+from crownstone_uart.core.uart.UartTypes import UartTxType, UartMessageType
 from crownstone_uart.core.uart.UartBridge import UartBridge
+
+from crownstone_uart.topics.UartTopics import UartTopics
+from crownstone_uart.topics.SystemTopics import SystemTopics
+
 from serial.tools import list_ports
 
-class UartManager:
+_LOGGER = logging.getLogger(__name__)
 
-    def __init__(self, loop = None):
+class UartManager(threading.Thread):
+
+    def __init__(self):
         self.port = None
         self.baudRate = 230400
+        self.writeChunkMaxSize = 0
         self.running = True
-        self._trackingLoop = loop
+        self.loop = None
         self._availablePorts = list(list_ports.comports())
         self._attemptingIndex = 0
         self._uartBridge = None
         self.ready = False
+        self.eventId = UartEventBus.subscribe(SystemTopics.connectionClosed, self.resetEvent)
 
-    async def reset(self):
-        self._attemptingIndex = 0
-        self._availablePorts = list(list_ports.comports())
-        self._uartBridge = None
-        self.port = None
+        threading.Thread.__init__(self)
 
-        await self.initialize()
+    def __del__(self):
+        self.stop()
+
+    def config(self, port, baudRate = 230400, writeChunkMaxSize=0):
+        self.port     = port
+        self.baudRate = baudRate
+        self.writeChunkMaxSize = writeChunkMaxSize
+
+    def run(self):
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        self.initialize()
 
     def stop(self):
         self.running = False
+        UartEventBus.unsubscribe(self.eventId)
         if self._uartBridge is not None:
-            self._uartBridge.stop_sync()
+            self._uartBridge.stop()
 
-    async def initialize(self, port=None, baudrate=230400):
-        self.baudRate = baudrate
-        self.ready = False
+    def resetEvent(self, eventData=None):
+        if self.ready:
+            self._uartBridge.stop()
+            while self._uartBridge.running:
+                time.sleep(0.1)
+            self.reset()
 
-        if port is not None:
-            found_port = False
-            index = 0
-            for testPort in self._availablePorts:
-                if port == testPort.device:
-                    found_port = True
-                    self._attemptingIndex = index
-                    break
-                index += 1
-            if not found_port:
-                return await self.setupConnection(port)
-            else:
-                await self._attemptConnection(self._attemptingIndex, False)
+            self.ready = False
+            self.initialize()
 
-        if self._trackingLoop is None:
-            self._trackingLoop = asyncio.get_running_loop()
+    def reset(self):
+        if self.running:
+            self._attemptingIndex = 0
+            self._availablePorts = list(list_ports.comports())
+            self._uartBridge = None
+            self.port = None
 
-        if self.port is None:
-            if self._attemptingIndex >= len(self._availablePorts):  # this also catches len(self._availablePorts) == 0
-                print("No Crownstone USB connected? Retrying...")
-                await asyncio.sleep(1)
-                await self.reset()
-            else:
-                await self._attemptConnection(self._attemptingIndex)
+    def echo(self, string):
+        controlPacket = ControlPacket(ControlType.UART_MESSAGE).loadString(string).getPacket()
+        uartMessage   = UartMessagePacket(UartTxType.CONTROL, controlPacket).getPacket()
+        uartPacket    = UartWrapperPacket(UartMessageType.UART_MESSAGE, uartMessage).getPacket()
+        UartEventBus.emit(SystemTopics.uartWriteData, uartPacket)
 
-    async def _attemptConnection(self, index, handshake=True):
+    def writeHello(self):
+        helloPacket = UartCommandHelloPacket().getPacket()
+        uartMessage = UartMessagePacket(UartTxType.HELLO, helloPacket).getPacket()
+        uartPacket = UartWrapperPacket(UartMessageType.UART_MESSAGE, uartMessage).getPacket()
+        UartEventBus.emit(SystemTopics.uartWriteData, uartPacket)
+
+    def initialize(self):
+        while self.running and not self.ready:
+            self.ready = False
+            _LOGGER.debug(F"Initializing... {self.port} {self.baudRate}")
+
+            # if the user provides his own port, we check if it is in the list of ports we have
+            # if it exists, we start there and skip the handshake.
+            # if it is not in the list, we attempt the connection regardless, this might change in the future.
+            if self.port is not None:
+                found_port = False
+                index = 0
+                # check if the provided port is among the listed ports.
+                for testPort in self._availablePorts:
+                    if self.port == testPort.device:
+                        found_port = True
+                        self._attemptingIndex = index
+                        break
+                    index += 1
+                # if it is not in the list of available ports
+                if not found_port:
+                    # we will attempt it anyway
+                    _LOGGER.debug(F"Could not find provided port, attempt connection to index...{self._attemptingIndex} {self.baudRate}")
+                    self.setupConnection(self.port)
+                else:
+                    _LOGGER.debug(F"Setup connection to...{self.port} {self.baudRate}")
+                    self._attemptConnection(self._attemptingIndex, False)
+                continue
+
+
+            if self.port is None:
+                if self._attemptingIndex >= len(self._availablePorts): # this also catches len(self._availablePorts) == 0
+                    _LOGGER.debug("No Crownstone USB connected? Retrying...")
+                    time.sleep(1)
+                    self.reset()
+                else:
+                    self._attemptConnection(self._attemptingIndex)
+
+
+    def _attemptConnection(self, index, handshake=True):
         attemptingPort = self._availablePorts[index]
-        await self.setupConnection(attemptingPort.device, handshake)
+        self.setupConnection(attemptingPort.device, handshake)
 
-    async def setupConnection(self, port, handshake=True):
-        self._uartBridge = UartBridge(port, self.baudRate)
+
+    def setupConnection(self, port, handshake=True):
+        _LOGGER.debug(F"Setting up connection...{port} {self.baudRate} {handshake}")
+        self._uartBridge = UartBridge(port, self.baudRate, self.writeChunkMaxSize)
         self._uartBridge.start()
-        await self._uartBridge.starting()
+
+        # wait for the bridge to initialize
+        while not self._uartBridge.started and self.running:
+            time.sleep(0.1)
+
         success = True
 
         if handshake:
-            success = await self._uartBridge.handshake()
+            collector = Collector(timeout=0.25, topic=UartTopics.hello)
+            self.writeHello()
+            reply = collector.receive_sync()
+
+            success = False
+            if isinstance(reply, UartCrownstoneHelloPacket):
+                success = True
+                _LOGGER.debug("Handshake successful")
+            else:
+                _LOGGER.debug("Handshake failed")
 
         if not success:
-            print("Crownstone handshake failed. Moving on to next device...")
+            _LOGGER.debug("Reinitialization required")
             self._attemptingIndex += 1
-            self.ready = False
-            await self._uartBridge.stop()
-            await self.initialize()
+            self._uartBridge.stop()
+            while self._uartBridge.started and self.running:
+                time.sleep(0.1)
         else:
-            print("Connection established to", port)
+            _LOGGER.info("Connection established to {}".format(port))
             self.port = port
             self.ready = True
-            asyncio.ensure_future(self.trackConnection())
-        
+            UartEventBus.emit(SystemTopics.connectionEstablished)
 
-    async def trackConnection(self):
-        await self._uartBridge.isAlive()
-        if self.running:
-            asyncio.ensure_future(self.reset())
 
 
     def is_ready(self) -> bool:

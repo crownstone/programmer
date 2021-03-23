@@ -1,8 +1,11 @@
-from crownstone_core.protocol.BluenetTypes import ControlType, SetPersistenceMode, GetPersistenceMode
+from crownstone_core.util.BufferReader import BufferReader
+
+from crownstone_core.protocol.BluenetTypes import ControlType, SetPersistenceMode, GetPersistenceMode, StateType
 from crownstone_core.util.Conversion import Conversion
 
 SUPPORTED_PROTOCOL_VERSION = 5
 
+# TODO: this isn't just for BLE as the name suggests.
 class BLEPacket:
 
     def __init__(self, packetType):
@@ -65,8 +68,6 @@ class ControlPacket(BLEPacket):
         super().__init__(packetType)
 
 
-
-
 class FactoryResetPacket(ControlPacket):
 
     def __init__(self):
@@ -75,7 +76,7 @@ class FactoryResetPacket(ControlPacket):
 
 class ControlStateGetPacket(ControlPacket):
 
-    def __init__(self, stateType, id = 0, persistenceMode = GetPersistenceMode.CURRENT):
+    def __init__(self, stateType: StateType, id = 0, persistenceMode = GetPersistenceMode.CURRENT):
         super().__init__(ControlType.GET_STATE)
         self.id = id
         self.loadUInt16(stateType)
@@ -83,19 +84,37 @@ class ControlStateGetPacket(ControlPacket):
 
 
     def getPacket(self):
+        # TODO: make use of the base class, now there is a double implementation of the control packet.
         arr = [SUPPORTED_PROTOCOL_VERSION]
         arr += Conversion.uint16_to_uint8_array(self.type)
-        arr += Conversion.uint16_to_uint8_array(self.length + 2) # 2 for the ID size
+        arr += Conversion.uint16_to_uint8_array(self.length + 6) # the + 2 is for the stateType uint16, +2 for the id, +2 for persistenceMode and reserved
         arr += self.payload # this is the state type
         arr += Conversion.uint16_to_uint8_array(self.id)
         arr.append(self.persistenceMode)
         arr.append(0)
         return arr
 
+class ControlStateGetResultPacket:
+    def __init__(self, data):
+        self.stateType = StateType.UNKNOWN
+        self.id = 0
+        self.persistenceMode = GetPersistenceMode.CURRENT
+        self.payload = []
+        self.load(data)
+
+    def load(self, data):
+        reader = BufferReader(data)
+        self.stateType = reader.getUInt16()
+        self.id = reader.getUInt16()
+        self.persistenceMode = reader.getUInt8()
+        reserved = reader.getUInt8()
+        self.payload = reader.getRemainingBytes()
+
+
 
 class ControlStateSetPacket(ControlPacket):
 
-    def __init__(self, stateType, id=0, persistenceMode = SetPersistenceMode.STORED):
+    def __init__(self, stateType: StateType, id=0, persistenceMode = SetPersistenceMode.STORED):
         super().__init__(ControlType.SET_STATE)
         self.stateType = stateType
         self.id = id
@@ -103,6 +122,7 @@ class ControlStateSetPacket(ControlPacket):
 
 
     def getPacket(self):
+        # TODO: make use of the base class, now there is a double implementation of the control packet.
         arr = [SUPPORTED_PROTOCOL_VERSION]
         arr += Conversion.uint16_to_uint8_array(self.type)
         arr += Conversion.uint16_to_uint8_array(self.length + 6) # the + 2 is for the stateType uint16, +2 for the id, +2 for persistenceMode and reserved

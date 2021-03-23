@@ -1,177 +1,76 @@
-from crownstone_core.packets.CrownstoneErrors import CrownstoneErrors
-from crownstone_core.packets.serviceDataParsers.parsers import parseOpCode5, parseOpCode6, parseOpCode4, parseOpCode3
+from crownstone_core.Enums import CrownstoneOperationMode
+
+from crownstone_core.Exceptions import CrownstoneException, CrownstoneError
+
+from crownstone_core.util.BufferReader import BufferReader
+from crownstone_core.packets.serviceDataParsers.parsers import parseOpCode6, parseOpcode7
 from crownstone_core.protocol.BluenetTypes import DeviceType
 from crownstone_core.util.EncryptionHandler import EncryptionHandler
+from crownstone_core.packets.serviceDataParsers.containers.AdvUnknownData import AdvUnknownData
 
 
 class ServiceData:
     
-    def __init__(self, data, unencrypted = False):
-        self.opCode = 0
-        self.dataType = 0
-        self.crownstoneId = 0
-        self.switchState = 0
-        self.flagsBitmask = 0
-        self.temperature = 0
-        self.powerFactor = 1
-        self.powerUsageReal = 0
-        self.powerUsageApparent = 0
-        self.accumulatedEnergy = 0
-        self.setupMode = False
-        self.stateOfExternalCrownstone = False
-        self.data = None
-        self.dataString = ""
-        self.dimmerReady = False
-        self.dimmingAllowed = False
-        self.hasError = False
-        self.switchLocked = False
-        self.partialTimestamp = 0
-        self.timestamp = -1
-        self.validation = 0x00  # Will be 0xFAif it is set.
-   
-        self.errorTimestamp = 0
-        self.errorsBitmask = 0
-        self.errorMode = False
-        self.timeIsSet = False
-        self.switchCraftEnabled = False
-        self.uniqueIdentifier = 0
-   
-        self.validData = False
-        self.dataReadyForUse = False  # decryption is successful if this is true
+    def __init__(self, data):
+        """
+        The parsed data ends up in the self.payload. These will be one of the Adv* classes defined in the ./containers/ folder.
+        """
+        self.opCode        = 0
+        self.deviceType    = DeviceType.UNDEFINED
+        self.operationMode = CrownstoneOperationMode.UNKNOWN
+        self.payload       = None
+        self.decrypted     = False
 
-        self.tapToToggleEnabled = False
-        self.behaviourEnabled = True
-        self.behaviourOverridden = False
-        self.behaviourMasterHash = 0
-    
-        self.deviceType = DeviceType.UNDEFINED
-        self.rssiOfExternalCrownstone = 0
- 
-        self.encryptedData = []
-        self.encryptedDataStartIndex = 0
-        
-        self.data = data
-        self.parse(unencrypted)
+        self._data = data
 
-    def parse(self, unencrypted=False):
-        self.validData = True
-        if len(self.data) == 18:
-            self.opCode = self.data[0]
-            self.encryptedData = self.data[2:]
-            self.encryptedDataStartIndex = 2
-        elif len(self.data) == 17:
-            self.opCode = self.data[0]
-            self.encryptedData = self.data[1:]
-            self.encryptedDataStartIndex = 1
-        elif len(self.data) == 16 and unencrypted:
-            self.encryptedData = self.data
-            self.opCode = 7
+        reader = BufferReader(self._data)
+        self.opCode = reader.getUInt8()
+        if self.opCode == 7:
+            self.operationMode = CrownstoneOperationMode.NORMAL
+        elif self.opCode == 6:
+            self.operationMode = CrownstoneOperationMode.SETUP
+
+        deviceType = reader.getUInt8()
+        if DeviceType.has_value(deviceType):
+            self.deviceType = DeviceType(deviceType)
+
+    def parse(self, decryptionKey = None):
+        if decryptionKey is not None:
+            self.decrypt(decryptionKey)
+
+        reader = BufferReader(self._data)
+        reader.skip(2)
+
+        if self.opCode == 7:
+            try:
+                self.payload = parseOpcode7(reader.getRemainingBytes())
+            except CrownstoneException:
+                self.payload = AdvUnknownData()
+                self.payload.data = self._data
+                raise CrownstoneException(CrownstoneError.INVALID_SERVICE_DATA, "Protocol not supported. Unknown data type. Could be because decryption failed.")
+        elif self.opCode == 6:
+            self.payload = parseOpCode6(reader.getRemainingBytes())
         else:
-            self.validData = False
+            self.payload = AdvUnknownData()
+            self.payload.data = self._data
+            raise CrownstoneException(CrownstoneError.INVALID_SERVICE_DATA, "Protocol not supported. Unknown opcode.")
 
-        if self.validData:
-            if self.opCode == 3:
-                parseOpCode3(self, self.encryptedData)
-            elif self.opCode == 4:
-                parseOpCode4(self, self.encryptedData)
-            elif self.opCode == 5 or self.opCode == 7:
-                self.getDeviceTypeFromPublicData()
-                parseOpCode5(self, self.encryptedData)
-            elif self.opCode == 6:
-                self.getDeviceTypeFromPublicData()
-                parseOpCode6(self, self.encryptedData)
-            else:
-                self.getDeviceTypeFromPublicData()
-                parseOpCode5(self, self.encryptedData)
-            
-    def getDeviceTypeFromPublicData(self):
-        if len(self.data) == 18:
-            if DeviceType.has_value(self.data[1]):
-                self.deviceType = type
 
-    def isInSetupMode(self):
-        if not self.validData:
-            return False
-    
-        return self.setupMode
-    
-    
-    def getDictionary(self):
-        errorsDictionary = CrownstoneErrors(self.errorsBitmask).getDictionary()
-        
-        returnDict = {}
-        
-        returnDict["opCode"]                    = self.opCode
-        returnDict["dataType"]                  = self.dataType
-        returnDict["stateOfExternalCrownstone"] = self.stateOfExternalCrownstone
-        returnDict["hasError"]                  = self.hasError
-        returnDict["setupMode"]                 = self.isInSetupMode()
-        returnDict["id"]                        = self.crownstoneId
-        returnDict["switchState"]               = self.switchState
-        returnDict["flagsBitmask"]              = self.flagsBitmask
-        returnDict["temperature"]               = self.temperature
-        returnDict["powerFactor"]               = self.powerFactor
-        returnDict["powerUsageReal"]            = self.powerUsageReal
-        returnDict["powerUsageApparent"]        = self.powerUsageApparent
-        returnDict["accumulatedEnergy"]         = self.accumulatedEnergy
-        returnDict["timestamp"]                 = self.timestamp
-        returnDict["dimmerReady"]               = self.dimmerReady
-        returnDict["dimmingAllowed"]            = self.dimmingAllowed
-        returnDict["switchLocked"]              = self.switchLocked
-        returnDict["switchCraftEnabled"]        = self.switchCraftEnabled
-        returnDict["tapToToggleEnabled"]        = self.tapToToggleEnabled
-        returnDict["behaviourEnabled"]          = self.behaviourEnabled
-        returnDict["behaviourOverridden"]       = self.behaviourOverridden
-        returnDict["behaviourMasterHash"]       = self.behaviourMasterHash
-
-        returnDict["errorMode"]                 = self.errorMode
-        returnDict["errors"]                    = errorsDictionary
-    
-        returnDict["uniqueElement"]             =  self.uniqueIdentifier
-        returnDict["timeIsSet"]                 =  self.timeIsSet
-
-        returnDict["rssiOfExternalCrownstone"]  = self.rssiOfExternalCrownstone
-    
-        return returnDict
-    
-    
-    def getSummary(self, address):
-        errorsDictionary = CrownstoneErrors(self.errorsBitmask).getDictionary()
-    
-        returnDict = {}
-    
-        returnDict["id"] = self.crownstoneId
-        returnDict["address"] = address
-        returnDict["setupMode"] = self.isInSetupMode()
-        returnDict["switchState"] = self.switchState
-        returnDict["temperature"] = self.temperature
-        returnDict["powerFactor"] = self.powerFactor
-        returnDict["powerUsageReal"] = self.powerUsageReal
-        returnDict["powerUsageApparent"] = self.powerUsageApparent
-        returnDict["accumulatedEnergy"] = self.accumulatedEnergy
-        returnDict["dimmerReady"] = self.dimmerReady
-        returnDict["dimmingAllowed"] = self.dimmingAllowed
-        returnDict["switchLocked"] = self.switchLocked
-        returnDict["switchCraftEnabled"] = self.switchCraftEnabled
-        returnDict["timeIsSet"] = self.timeIsSet
-        returnDict["timestamp"] = self.timestamp
-        returnDict["hasError"] = self.hasError
-        returnDict["errorMode"] = self.errorMode
-        returnDict["errors"] = errorsDictionary
-    
-        return returnDict
-
+    def getOperationMode(self):
+        return self.operationMode
 
     def decrypt(self, keyHexString):
-        if self.validData and len(self.encryptedData) == 16 and len(keyHexString) >= 16:
-            if not self.setupMode:
-                result = EncryptionHandler.decryptECB(self.encryptedData, keyHexString)
+        if len(keyHexString) >= 16 and len(self._data) == 18:
+            if self.operationMode == CrownstoneOperationMode.NORMAL:
+                reader = BufferReader(self._data)
+                encryptedData = reader.skip(2).getRemainingBytes()
+                result = EncryptionHandler.decryptECB(encryptedData, keyHexString)
 
-                for i in range(0, len(self.encryptedData)):
-                    self.data[i + self.encryptedDataStartIndex] = result[i]
+                for i in range(0, len(encryptedData)):
+                    # the first 2 bytes are opcode and device type
+                    self._data[i + 2] = result[i]
 
-                self.parse()
-            self.dataReadyForUse = True
+                self.decrypted = True
         else:
-            self.dataReadyForUse = False
+            raise CrownstoneException(CrownstoneError.COULD_NOT_DECRYPT, "ServiceData decryption failed. Invalid key or invalid data.")
 

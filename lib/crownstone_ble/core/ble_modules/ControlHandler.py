@@ -1,93 +1,109 @@
-import time
-from bluepy.btle import BTLEException
-from crownstone_ble.Exceptions import BleError
-from crownstone_core.Exceptions import CrownstoneException, CrownstoneBleException
+import asyncio
+import logging
+
+from crownstone_core.Exceptions import CrownstoneException, CrownstoneBleException, CrownstoneError
+from crownstone_core.packets.microapp.MicroappHeaderPacket import MicroappHeaderPacket
+from crownstone_core.packets.microapp.MicroappInfoPacket import MicroappInfoPacket
+from crownstone_core.packets.microapp.MicroappUploadPacket import MicroappUploadPacket
+from crownstone_core.packets.ResultPacket import ResultPacket
 from crownstone_core.packets.SessionDataPacket import SessionDataPacket
+from crownstone_core.protocol.BlePackets import ControlPacket
+from crownstone_core.protocol.BluenetTypes import ProcessType, ControlType, ResultValue
 from crownstone_core.protocol.Characteristics import CrownstoneCharacteristics
 from crownstone_core.protocol.ControlPackets import ControlPacketsGenerator
 from crownstone_core.protocol.Services import CSServices
 from crownstone_core.util.EncryptionHandler import EncryptionHandler, CHECKSUM
 
+from crownstone_ble.Exceptions import BleError
+
+_LOGGER = logging.getLogger(__name__)
 
 class ControlHandler:
     def __init__(self, bluetoothCore):
         self.core = bluetoothCore
 
-    def getAndSetSessionNone(self):
+    async def getAndSetSessionNone(self):
+        # TODO: move this function to BleHandler.
         # read the nonce
-        rawNonce = self.core.ble.readCharacteristicWithoutEncryption(CSServices.CrownstoneService, CrownstoneCharacteristics.SessionData)
+        rawNonce = await self.core.ble.readCharacteristicWithoutEncryption(CSServices.CrownstoneService, CrownstoneCharacteristics.SessionData)
         ProcessSessionNoncePacket(rawNonce, self.core.settings.basicKey, self.core.settings)
 
-    def setSwitchState(self, switchState):
+    async def setSwitch(self, switchVal: int):
         """
-         :param switchState: number [0..1]
+        :param switchVal: 0% .. 100% or special value (SwitchValSpecial).
         """
-        self._writeControlPacket(ControlPacketsGenerator.getSwitchStatePacket(switchState))
+        await self._writeControlPacket(ControlPacketsGenerator.getSwitchCommandPacket(switchVal))
 
-    def switchRelay(self, switchState):
+    async def setRelay(self, turnOn: bool):
         """
-         :param switchState: number 0 is off, 1 is on.
+        :param turnOn: True to turn relay on.
         """
-        self._writeControlPacket(ControlPacketsGenerator.getRelaySwitchPacket(switchState))
+        await self._writeControlPacket(ControlPacketsGenerator.getRelaySwitchPacket(turnOn))
 
-    def switchPWM(self, switchState):
+    async def setDimmer(self, intensity: int):
         """
-         :param switchState: number [0..1]
+         :param intensity: percentage [0..100]
         """
-        self._writeControlPacket(ControlPacketsGenerator.getPwmSwitchPacket(switchState))
+        await self._writeControlPacket(ControlPacketsGenerator.getDimmerSwitchPacket(intensity))
 
-    def commandFactoryReset(self):
+    async def commandFactoryReset(self):
         """
           If you have the keys, you can use this to put the crownstone back into factory default mode
         """
-        self._writeControlPacket(ControlPacketsGenerator.getCommandFactoryResetPacket())
+        await self._writeControlPacket(ControlPacketsGenerator.getCommandFactoryResetPacket())
 
-    def allowDimming(self, allow):
+    async def allowDimming(self, allow: bool):
         """
-        :param allow: bool
+        :param allow: True to allow dimming
         """
-        self._writeControlPacket(ControlPacketsGenerator.getAllowDimmingPacket(allow))
+        await self._writeControlPacket(ControlPacketsGenerator.getAllowDimmingPacket(allow))
 
-    def disconnect(self):
+    async def disconnect(self):
         """
-          This forces the Crownstone to disconnect from you
+        Force the Crownstone to disconnect from you.
         """
         try:
-            self._writeControlPacket(ControlPacketsGenerator.getDisconnectPacket())
+            #print("Send disconnect command")
+            await self._writeControlPacket(ControlPacketsGenerator.getDisconnectPacket())
+        except Exception as err:
+            # TODO: catch this error if it is something like already disconnected
+            #print("Unknown error")
+            raise err
+
+        try:
+            # Disconnect from this side as well.
+            #print("Disconnect from this side as well")
             self.core.ble.disconnect()
-        except BTLEException as err:
-            if err.code is BTLEException.DISCONNECTED:
-                pass
-            else:
-                raise err
+        except Exception as err:
+            #print("Unknown error")
+            raise err
 
 
-
-    def lockSwitch(self, lock):
+    async def lockSwitch(self, lock):
         """
         :param lock: bool
         """
-        self._writeControlPacket(ControlPacketsGenerator.getLockSwitchPacket(lock))
+        await self._writeControlPacket(ControlPacketsGenerator.getLockSwitchPacket(lock))
 
 
-    def reset(self):
-        self._writeControlPacket(ControlPacketsGenerator.getResetPacket())
+    async def reset(self):
+        await self._writeControlPacket(ControlPacketsGenerator.getResetPacket())
 
 
 
-    def recovery(self, address):
-        self.core.connect(address, ignoreEncryption=True)
-        self._recoveryByFactoryReset()
-        self._checkRecoveryProcess()
-        self.core.disconnect()
-        time.sleep(5)
-        self.core.connect(address, ignoreEncryption=True)
-        self._recoveryByFactoryReset()
-        self._checkRecoveryProcess()
-        self.core.disconnect()
-        time.sleep(2)
+    async def recovery(self, address):
+        await self.core.connect(address, ignoreEncryption=True)
+        await self._recoveryByFactoryReset()
+        await self._checkRecoveryProcess()
+        await self.core.disconnect()
+        await asyncio.sleep(5)
+        await self.core.connect(address, ignoreEncryption=True)
+        await self._recoveryByFactoryReset()
+        await self._checkRecoveryProcess()
+        await self.core.disconnect()
+        await asyncio.sleep(2)
 
-    def _recoveryByFactoryReset(self):
+    async def _recoveryByFactoryReset(self):
         packet = ControlPacketsGenerator.getFactoryResetPacket()
         return self.core.ble.writeToCharacteristicWithoutEncryption(
             CSServices.CrownstoneService,
@@ -95,7 +111,7 @@ class ControlHandler:
             packet
         )
 
-    def _checkRecoveryProcess(self):
+    async def _checkRecoveryProcess(self):
         result = self.core.ble.readCharacteristicWithoutEncryption(CSServices.CrownstoneService, CrownstoneCharacteristics.FactoryReset)
         if result[0] == 1:
             return True
@@ -105,46 +121,114 @@ class ControlHandler:
             raise CrownstoneException(BleError.NOT_IN_RECOVERY_MODE, "The recovery mechanism has expired. It is only available briefly after the Crownstone is powered on.")
 
 
-    #  self.bleManager.readCharacteristic(CSServices.CrownstoneService, characteristicId: CrownstoneCharacteristics.FactoryReset)
-    # {(result:[UInt8]) -> Void in
-    # if (result[0] == 1)
-    #     seal.fulfill(())
-    # else if (result[0] == 2) {
-    # seal.reject(CrownstoneError.RECOVER_MODE_DISABLED)
-    # else {
-    # seal.reject(CrownstoneError.NOT_IN_RECOVERY_MODE)
-    # .catch{(err) -> Void in
-    # seal.reject(CrownstoneError.CANNOT_READ_FACTORY_RESET_CHARACTERISTIC)
 
+    async def getMicroappInfo(self) -> MicroappInfoPacket:
+        controlPacket = ControlPacket(ControlType.MICROAPP_GET_INFO).getPacket()
+        result = await self.core.ble.setupSingleNotification(
+            CSServices.CrownstoneService,
+            CrownstoneCharacteristics.Result,
+            lambda: self._writeControlPacket(controlPacket)
+        )
+        _LOGGER.info(f"getMicroappInfo {result}")
+        resultPacket = ResultPacket(result)
+        _LOGGER.info(f"getMicroappInfo {resultPacket}")
+        infoPacket = MicroappInfoPacket(resultPacket.payload)
+        return infoPacket
 
-    # return self.bleManager.connect(uuid)}
-    # .then
-    # {(_) -> Promise < Void > in
-    # return self._recoverByFactoryReset()}
-    # .then
-    # {(_) -> Promise < Void > in
-    # return self._checkRecoveryProcess()}
-    # .then
-    # {(_) -> Promise < Void > in
-    # return self.bleManager.disconnect()}
-    # .then
-    # {(_) -> Promise < Void > in
-    # return self.bleManager.waitToReconnect()}
-    # .then
-    # {(_) -> Promise < Void > in
-    # return self.bleManager.connect(uuid)}
-    # .then
-    # {(_) -> Promise < Void > in
-    # return self._recoverByFactoryReset()}
-    # .then
-    # {(_) -> Promise < Void > in
-    # return self._checkRecoveryProcess()}
-    # .then
-    # {(_) -> Promise < Void > in
-    # self.bleManager.settings.restoreEncryption()
-    # return self.bleManager.disconnect()
+    async def uploadMicroapp(self, data: bytearray, index: int = 0, chunkSize: int = 128):
+        for i in range(0, len(data), chunkSize):
+            chunk = data[i : i + chunkSize]
+            # Pad the chunk with 0xFF, so the size is a multiple of 4.
+            if len(chunk) % 4:
+                if isinstance(chunk, bytes):
+                    chunk = bytearray(chunk)
+                chunk.extend((4 - (len(chunk) % 4)) * [0xFF])
+            await self.uploadMicroappChunk(index, chunk, i)
 
+    async def uploadMicroappChunk(self, index: int, data: bytearray, offset: int):
+        _LOGGER.info(f"Upload microapp chunk index={index} offset={offset} size={len(data)}")
+        header = MicroappHeaderPacket(appIndex=index)
+        packet = MicroappUploadPacket(header, offset, data)
+        controlPacket = ControlPacket(ControlType.MICROAPP_UPLOAD).loadByteArray(packet.toBuffer()).getPacket()
 
+        def handleResult(notificationData):
+            result = ResultPacket(notificationData)
+            if result.valid:
+                if result.resultCode == ResultValue.WAIT_FOR_SUCCESS:
+                    _LOGGER.info("Waiting for data to be stored on Crownstone.")
+                    return ProcessType.CONTINUE
+                elif result.resultCode == ResultValue.SUCCESS or result.resultCode == ResultValue.SUCCESS_NO_CHANGE:
+                    _LOGGER.info("Data stored.")
+                    return ProcessType.FINISHED
+                else:
+                    _LOGGER.warning(f"Failed: {result.resultCode}")
+                    return ProcessType.ABORT_ERROR
+            else:
+                _LOGGER.warning("Invalid result.")
+                return ProcessType.ABORT_ERROR
+
+        await self.core.ble.setupNotificationStream(
+            CSServices.CrownstoneService,
+            CrownstoneCharacteristics.Result,
+            lambda: self._writeControlPacket(controlPacket),
+            lambda notification: handleResult(notification),
+            5
+        )
+        _LOGGER.info(f"uploaded chunk offset={offset}")
+        # TODO: return the final result?
+
+    async def validateMicroapp(self, index):
+        packet = MicroappHeaderPacket(index)
+        controlPacket = ControlPacket(ControlType.MICROAPP_VALIDATE).loadByteArray(packet.toBuffer()).getPacket()
+        result = await self.core.ble.setupSingleNotification(
+            CSServices.CrownstoneService,
+            CrownstoneCharacteristics.Result,
+            lambda: self._writeControlPacket(controlPacket)
+        )
+        resultPacket = ResultPacket(result)
+        if resultPacket.resultCode != ResultValue.SUCCESS:
+            raise CrownstoneException(CrownstoneError.RESULT_NOT_SUCCESS, f"result={resultPacket.resultCode}")
+
+    async def enableMicroapp(self, index):
+        packet = MicroappHeaderPacket(index)
+        controlPacket = ControlPacket(ControlType.MICROAPP_ENABLE).loadByteArray(packet.toBuffer()).getPacket()
+        result = await self.core.ble.setupSingleNotification(
+            CSServices.CrownstoneService,
+            CrownstoneCharacteristics.Result,
+            lambda: self._writeControlPacket(controlPacket)
+        )
+        resultPacket = ResultPacket(result)
+        if resultPacket.resultCode != ResultValue.SUCCESS:
+            raise CrownstoneException(CrownstoneError.RESULT_NOT_SUCCESS, f"result={resultPacket.resultCode}")
+
+    async def removeMicroapp(self, index):
+        packet = MicroappHeaderPacket(index)
+        controlPacket = ControlPacket(ControlType.MICROAPP_REMOVE).loadByteArray(packet.toBuffer()).getPacket()
+
+        def handleResult(notificationData):
+            result = ResultPacket(notificationData)
+            if result.valid:
+                if result.resultCode == ResultValue.WAIT_FOR_SUCCESS:
+                    _LOGGER.info("Waiting for data to be erased on Crownstone.")
+                    return ProcessType.CONTINUE
+                elif result.resultCode == ResultValue.SUCCESS or result.resultCode == ResultValue.SUCCESS_NO_CHANGE:
+                    _LOGGER.info("Data erased.")
+                    return ProcessType.FINISHED
+                else:
+                    _LOGGER.warning(f"Failed: {result.resultCode}")
+                    return ProcessType.ABORT_ERROR
+            else:
+                _LOGGER.warning("Invalid result.")
+                return ProcessType.ABORT_ERROR
+
+        await self.core.ble.setupNotificationStream(
+            CSServices.CrownstoneService,
+            CrownstoneCharacteristics.Result,
+            lambda: self._writeControlPacket(controlPacket),
+            lambda notification: handleResult(notification),
+            5
+        )
+        _LOGGER.info(f"Removed app {index}")
 
     """
     ---------------  UTIL  ---------------
@@ -153,11 +237,11 @@ class ControlHandler:
 
 
 
-    def _readControlPacket(self, packet):
-        return self.core.ble.readCharacteristic(CSServices.CrownstoneService, CrownstoneCharacteristics.Control)
+    async def _readControlPacket(self, packet):
+        return await self.core.ble.readCharacteristic(CSServices.CrownstoneService, CrownstoneCharacteristics.Control)
 
-    def _writeControlPacket(self, packet):
-        self.core.ble.writeToCharacteristic(CSServices.CrownstoneService, CrownstoneCharacteristics.Control, packet)
+    async def _writeControlPacket(self, packet):
+        await self.core.ble.writeToCharacteristic(CSServices.CrownstoneService, CrownstoneCharacteristics.Control, packet)
 
 
 def ProcessSessionNoncePacket(encryptedPacket, key, settings):

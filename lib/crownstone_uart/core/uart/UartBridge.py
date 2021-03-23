@@ -1,109 +1,66 @@
-import asyncio
-import os
+import logging
+import sys
 import threading
 
 import serial
 import serial.tools.list_ports
-from crownstone_core.protocol.BlePackets import ControlPacket
-from crownstone_core.protocol.BluenetTypes import ControlType
 
-from crownstone_uart.topics.UartTopics import UartTopics
-
+from crownstone_uart.Constants import UART_READ_TIMEOUT, UART_WRITE_TIMEOUT
 from crownstone_uart.core.UartEventBus import UartEventBus
-from crownstone_uart.core.dataFlowManagers.Collector import Collector
 from crownstone_uart.core.uart.UartParser import UartParser
 from crownstone_uart.core.uart.UartReadBuffer import UartReadBuffer
-from crownstone_uart.core.uart.UartTypes import UartTxType
-from crownstone_uart.core.uart.UartWrapper import UartWrapper
 from crownstone_uart.topics.SystemTopics import SystemTopics
 
+_LOGGER = logging.getLogger(__name__)
 
-class UartBridge (threading.Thread):
 
-    def __init__(self, port, baudrate):
+class UartBridge(threading.Thread):
+
+    def __init__(self, port, baudrate, writeChunkMaxSize=0):
         self.baudrate = baudrate
         self.port = port
+        self.writeChunkMaxSize = writeChunkMaxSize
 
         self.serialController = None
         self.started = False
-        self.parser = None
-        self.eventId = 0
 
         self.running = True
-        
-        threading.Thread.__init__(self)
-
-
-    def __del__(self):
-        self.stop_sync()
-
-
-    async def handshake(self):
-        collector = Collector(timeout=0.25, topic=UartTopics.uartMessage)
-        self.echo("HelloCrownstone")
-        reply = await collector.receive()
-
-        if reply is not None:
-            if "string" in reply:
-                return reply["string"] == "HelloCrownstone"
-        return False
-
-
-    def echo(self, string):
-        controlPacket = ControlPacket(ControlType.UART_MESSAGE).loadString(string).getPacket()
-        uartPacket    = UartWrapper(UartTxType.CONTROL, controlPacket).getPacket()
-        self.write_to_uart(uartPacket)
-
-
-    async def starting(self):
-        counter = 0
-        while not self.started and counter < 2:
-            counter += 0.2
-            await asyncio.sleep(0.02)
-
-    def run(self):
         self.parser = UartParser()
         self.eventId = UartEventBus.subscribe(SystemTopics.uartWriteData, self.write_to_uart)
+        threading.Thread.__init__(self)
+
+    def __del__(self):
+        self.stop()
+
+
+    def run(self):
         self.start_serial()
         self.start_reading()
 
 
-    def stop_sync(self):
-        # print("Stopping UartBridge")
+    def stop(self):
         self.running = False
-        self.parser.stop()
         UartEventBus.unsubscribe(self.eventId)
-
-
-    async def stop(self):
-        self.stop_sync()
-        counter = 0
-        while self.serialController is not None and counter < 2:
-            counter += 0.1
-            await asyncio.sleep(0.1)
-
-
-    async def isAlive(self):
-        while self.serialController is not None and self.running:
-            await asyncio.sleep(0.1)
+        self.parser.stop()
 
 
     def start_serial(self):
-        # print("Initializing serial on port ", self.port, ' with baudrate ', self.baudrate)
+        _LOGGER.debug(F"UartBridge: Initializing serial on port {self.port} with baudrate {self.baudrate}")
         try:
             self.serialController = serial.Serial()
             self.serialController.port = self.port
             self.serialController.baudrate = int(self.baudrate)
-            self.serialController.timeout = 0.25
+            self.serialController.timeout = UART_READ_TIMEOUT
+            self.serialController._write_timeout = UART_WRITE_TIMEOUT
             self.serialController.open()
         except OSError or serial.SerialException or KeyboardInterrupt:
-            self.stop_sync()
+            self.stop()
 
 
     def start_reading(self):
         readBuffer = UartReadBuffer()
         self.started = True
-        # print("Read starting on serial port.")
+        _LOGGER.debug(F"Read starting on serial port.{self.port} {self.running}")
         try:
             while self.running:
                 bytesFromSerial = self.serialController.read()
@@ -116,17 +73,43 @@ class UartBridge (threading.Thread):
 
             # print("Cleaning up UartBridge")
         except OSError or serial.SerialException:
-            print("Connection Failed. Retrying...")
+            _LOGGER.info("Connection to USB Failed. Retrying...")
         except KeyboardInterrupt:
             self.running = False
-            print("Closing serial connection.")
+            _LOGGER.debug("Closing serial connection.")
 
-        self.started = False
+        # close the serial controller
         self.serialController.close()
         self.serialController = None
+        # remove the event listener pointing to the old connection
+        UartEventBus.unsubscribe(self.eventId)
+        self.started = False
+        UartEventBus.emit(SystemTopics.connectionClosed, True)
 
     def write_to_uart(self, data):
+        _LOGGER.debug(f"write_to_uart: {data}")
         if self.serialController is not None and self.started:
-            self.serialController.write(data)
+            try:
+                if self.writeChunkMaxSize == 0:
+                    self.serialController.write(data)
+                else:
+                    # writing in chunks solves issues writing to certain JLink chips. A max chunkSize of 64 was found to work well for our case.
+                    chunkSize = self.writeChunkMaxSize
+                    index = 0
+                    while (index*chunkSize) < len(data):
+                        chunkedData = data[index*chunkSize:chunkSize*(index+1)]
+                        index += 1
+                        self.serialController.write(chunkedData)
+
+                UartEventBus.emit(SystemTopics.uartWriteSuccess, data)
+            except serial.SerialTimeoutException as e:
+                UartEventBus.emit(SystemTopics.uartWriteError, {"message":"Timeout on uart write.", "error": e})
+            except serial.SerialException as e:
+                UartEventBus.emit(SystemTopics.uartWriteError, {"message":"SerialException occurred during uart write", "error": e})
+            except OSError as e:
+                UartEventBus.emit(SystemTopics.uartWriteError, {"message":"OSError occurred during uart write.", "error": e})
+            except:
+                e = sys.exc_info()[0]
+                UartEventBus.emit(SystemTopics.uartWriteError, {"message":"Unknown error during uart write.", "error": e})
         else:
-            self.stop_sync()
+            self.stop()

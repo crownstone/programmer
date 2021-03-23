@@ -24,16 +24,16 @@ class EncryptionError(Enum):
 
 
 class CrownstoneError(Enum):
-    ADMIN_KEY_REQUIRED                = "ADMIN_KEY_REQUIRED"
-    MEMBER_KEY_REQUIRED               = "MEMBER_KEY_REQUIRED"
-    BASIC_KEY_REQUIRED                = "BASIC_KEY_REQUIRED"
-    SERVICE_DATA_KEY_REQUIRED         = "SERVICE_DATA_KEY_REQUIRED"
-    LOCALIZATION_KEY_REQUIRED         = "LOCALIZATION_KEY_REQUIRED"
-    MESH_APP_KEY                      = "MESH_APP_KEY"
-    MESH_NETWORK_KEY                  = "MESH_NETWORK_KEY"
-    INVALID_ADDRESS                   = "INVALID_ADDRESS"
+    ADMIN_KEY_REQUIRED                                  = "ADMIN_KEY_REQUIRED"
+    MEMBER_KEY_REQUIRED                                 = "MEMBER_KEY_REQUIRED"
+    BASIC_KEY_REQUIRED                                  = "BASIC_KEY_REQUIRED"
+    SERVICE_DATA_KEY_REQUIRED                           = "SERVICE_DATA_KEY_REQUIRED"
+    LOCALIZATION_KEY_REQUIRED                           = "LOCALIZATION_KEY_REQUIRED"
+    MESH_APP_KEY                                        = "MESH_APP_KEY"
+    MESH_NETWORK_KEY                                    = "MESH_NETWORK_KEY"
+    INVALID_ADDRESS                                     = "INVALID_ADDRESS"
 
-    NOT_IMPLEMENTED_YET               = "NOT_IMPLEMENTED_YET"
+    NOT_IMPLEMENTED_YET                                 = "NOT_IMPLEMENTED_YET"
 
     DISCONNECTED                                        = "DISCONNECTED"
     CONNECTION_CANCELLED                                = "CONNECTION_CANCELLED"
@@ -146,14 +146,20 @@ class CrownstoneError(Enum):
     NO_END_CONDITION_PRESENCE                           = "NO_END_CONDITION_PRESENCE"
     NO_END_CONDITION_DURATION                           = "NO_END_CONDITION_DURATION"
     PROTOCOL_NOT_SUPPORTED                              = "PROTOCOL_NOT_SUPPORTED"
+    RESULT_NOT_SUCCESS                                  = "RESULT_NOT_SUCCESS"
+
+    INVALID_SERVICE_DATA                                = "INVALID_SERVICE_DATA"
+    UNKNOWN_SERVICE_DATA                                = "UNKNOWN_SERVICE_DATA"
 
 
+# TODO: why is there a BLE exception in the core lib? How is it different?
 class CrownstoneBleException(Exception):
     code    = None
     type    = None
     message = None
-    
+
     def __init__(self, type, message="", code=0):
+        # TODO: what is type, and code?
         self.type = type
         self.message = message
         self.code = code
@@ -165,6 +171,7 @@ class CrownstoneException(Exception):
     message = None
     
     def __init__(self, type, message, code=0):
+        # TODO: what is type, and code?
         self.type = type
         self.message = message
         self.code = code

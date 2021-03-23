@@ -5,28 +5,24 @@ from crownstone_core.protocol.BlePackets import ControlStateGetPacket
 from crownstone_core.protocol.BluenetTypes import StateType
 from crownstone_core.protocol.Characteristics import CrownstoneCharacteristics
 from crownstone_core.protocol.Services import CSServices
+from crownstone_core.protocol.SwitchState import SwitchState
 
 
 class StateHandler:
     def __init__(self, bluetoothCore):
         self.core = bluetoothCore
         
-    def getSwitchState(self):
-        return self._getState(StateType.SWITCH_STATE)[0]
-    
-    def getSwitchStateFloat(self):
-        switchState = self._getState(StateType.SWITCH_STATE)[0]
-        
-        returnState = 0.0
-        if switchState == 128:
-            returnState = 1.0
-        elif switchState <= 100:
-            returnState = 0.01 * switchState * 0.99
-        
-        return returnState
-    
-    def getTime(self):
-        bytesResult = self._getState(StateType.TIME)
+    async def getSwitchState(self) -> SwitchState:
+        # TODO: check result code
+        rawSwitchState = await self._getState(StateType.SWITCH_STATE)
+        return SwitchState(rawSwitchState[0])
+
+    async def getTime(self) -> int:
+        """
+        @return: posix timestamp (uint32)
+        """
+        # TODO: check result code
+        bytesResult = await self._getState(StateType.TIME)
         return Conversion.uint8_array_to_uint32(bytesResult)
     
     
@@ -37,14 +33,11 @@ class StateHandler:
     """
     
     
-    def _writeToState(self):
-        pass
-    
-    def _getState(self, stateType):
+    async def _getState(self, stateType):
         """
         :param stateType: StateType
         """
-        result = self.core.ble.setupSingleNotification(CSServices.CrownstoneService, CrownstoneCharacteristics.Result, lambda: self._requestState(stateType))
+        result = await self.core.ble.setupSingleNotification(CSServices.CrownstoneService, CrownstoneCharacteristics.Result, lambda: self._requestState(stateType))
 
         resultPacket = ResultPacket(result)
         if resultPacket.valid:
@@ -58,8 +51,8 @@ class StateHandler:
         else:
             raise CrownstoneException(CrownstoneError.INCORRECT_RESPONSE_LENGTH, "Result is invalid")
 
-    def _requestState(self, stateType):
-        self.core.ble.writeToCharacteristic(
+    async def _requestState(self, stateType):
+        await self.core.ble.writeToCharacteristic(
             CSServices.CrownstoneService,
             CrownstoneCharacteristics.Control,
             ControlStateGetPacket(stateType).getPacket()

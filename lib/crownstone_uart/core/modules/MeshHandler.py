@@ -4,55 +4,50 @@ from typing import List
 from crownstone_core import Conversion
 from crownstone_core.Exceptions import CrownstoneException
 from crownstone_core.protocol.BlePackets import ControlPacket, ControlStateSetPacket
-from crownstone_core.protocol.BluenetTypes import ControlType, StateType, ResultValue
+from crownstone_core.protocol.BluenetTypes import ControlType, StateType, ResultValue, SwitchValSpecial
 from crownstone_core.protocol.ControlPackets import ControlPacketsGenerator
 from crownstone_core.protocol.MeshPackets import MeshMultiSwitchPacket, StoneMultiSwitchPacket, MeshSetStatePacket, MeshBroadcastPacket, MeshBroadcastAckedPacket
+from crownstone_core.util.Timestamp import getCorrectedLocalTimestamp
 
 from crownstone_uart.core.containerClasses.MeshResult import MeshResult
 from crownstone_uart.core.dataFlowManagers.BatchCollector import BatchCollector
 from crownstone_uart.core.dataFlowManagers.Collector import Collector
 from crownstone_uart.core.UartEventBus import UartEventBus
-from crownstone_uart.core.uart.UartTypes import UartTxType
-from crownstone_uart.core.uart.UartWrapper import UartWrapper
+from crownstone_uart.core.uart.uartPackets.UartMessagePacket import UartMessagePacket
+from crownstone_uart.core.uart.UartTypes import UartTxType, UartMessageType
+from crownstone_uart.core.uart.uartPackets.UartWrapperPacket import UartWrapperPacket
 from crownstone_uart.topics.SystemTopics import SystemTopics
 
 
 class MeshHandler:
 
-    def __init__(self):
-        pass
-
-
     def turn_crownstone_on(self, crownstone_id: int):
-        self._switch_crownstone(crownstone_id, 255)
+        self._switch_crownstone(crownstone_id, SwitchValSpecial.SMART_ON)
 
 
     def turn_crownstone_off(self, crownstone_id: int):
         self._switch_crownstone(crownstone_id, 0)
 
 
-    def set_crownstone_switch_state(self, crownstone_id: int, switch_state: float):
+    def set_crownstone_switch(self, crownstone_id: int, switch_val: int):
         """
         :param crownstone_id:
-        :param switch_state: 0 .. 1
+        :param switch_val: 0% .. 100% or special value (SwitchValSpecial).
         :return:
         """
 
-        # forcibly map the input from [any .. any] to [0 .. 1]
-        correctedValue = min(1.0, max(0.0, switch_state))
-
-        self._switch_crownstone(crownstone_id, correctedValue)
+        self._switch_crownstone(crownstone_id, switch_val)
 
 
-    def _switch_crownstone(self,crownstone_id, switch_state):
+    def _switch_crownstone(self,crownstone_id: int, switch_val: int):
         """
         :param crownstone_id:
-        :param switch_state: 0 .. 1
+        :param switch_val: 0% .. 100% or special value (SwitchValSpecial).
         :return:
         """
 
         # create a stone switch state packet to go into the multi switch
-        stoneSwitchPacket = StoneMultiSwitchPacket(crownstone_id, switch_state)
+        stoneSwitchPacket = StoneMultiSwitchPacket(crownstone_id, switch_val)
 
         # wrap it in a mesh multi switch packet
         meshMultiSwitchPacket = MeshMultiSwitchPacket([stoneSwitchPacket]).getPacket()
@@ -60,8 +55,11 @@ class MeshHandler:
         # wrap that in a control packet
         controlPacket = ControlPacket(ControlType.MULTISWITCH).loadByteArray(meshMultiSwitchPacket).getPacket()
 
-        # finally wrap it in an Uart packet
-        uartPacket = UartWrapper(UartTxType.CONTROL, controlPacket).getPacket()
+        # wrap that in a uart message
+        uartMessage = UartMessagePacket(UartTxType.CONTROL, controlPacket).getPacket()
+
+        # finally wrap it in a uart wrapper packet
+        uartPacket = UartWrapperPacket(UartMessageType.UART_MESSAGE, uartMessage).getPacket()
 
         # send over uart
         UartEventBus.emit(SystemTopics.uartWriteData, uartPacket)
@@ -70,8 +68,11 @@ class MeshHandler:
     async def set_time(self, timestamp = None):
         if timestamp is None:
             timestamp = math.ceil(time.time())
-        time_packet = ControlPacketsGenerator.getSetTimePacket(timestamp)
-        await self._command_via_mesh_broadcast(time_packet.getPacket())
+
+        localizedTimeStamp = getCorrectedLocalTimestamp(timestamp)
+
+        time_packet = ControlPacketsGenerator.getSetTimePacket(localizedTimeStamp)
+        await self._command_via_mesh_broadcast(time_packet)
 
 
     async def send_no_op(self):
@@ -187,7 +188,8 @@ class MeshHandler:
         # flag value: 2
         corePacket    = MeshSetStatePacket(crownstone_id, packet).getPacket()
         controlPacket = ControlPacket(ControlType.MESH_COMMAND).loadByteArray(corePacket).getPacket()
-        uartPacket    = UartWrapper(UartTxType.CONTROL, controlPacket).getPacket()
+        uartMessage = UartMessagePacket(UartTxType.CONTROL, controlPacket).getPacket()
+        uartPacket = UartWrapperPacket(UartMessageType.UART_MESSAGE, uartMessage).getPacket()
 
         resultCollector     = Collector(timeout=2,  topic=SystemTopics.resultPacket)
         individualCollector = BatchCollector(timeout=15, topic=SystemTopics.meshResultPacket)
@@ -217,7 +219,8 @@ class MeshHandler:
         # value: 1
         corePacket = MeshBroadcastPacket(packet).getPacket()
         controlPacket = ControlPacket(ControlType.MESH_COMMAND).loadByteArray(corePacket).getPacket()
-        uartPacket = UartWrapper(UartTxType.CONTROL, controlPacket).getPacket()
+        uartMessage = UartMessagePacket(UartTxType.CONTROL, controlPacket).getPacket()
+        uartPacket = UartWrapperPacket(UartMessageType.UART_MESSAGE, uartMessage).getPacket()
 
         resultCollector = Collector(timeout=2, topic=SystemTopics.resultPacket)
 
@@ -243,7 +246,8 @@ class MeshHandler:
         # value: 3
         corePacket    = MeshBroadcastAckedPacket(crownstone_uid_array, packet).getPacket()
         controlPacket = ControlPacket(ControlType.MESH_COMMAND).loadByteArray(corePacket).getPacket()
-        uartPacket    = UartWrapper(UartTxType.CONTROL, controlPacket).getPacket()
+        uartMessage = UartMessagePacket(UartTxType.CONTROL, controlPacket).getPacket()
+        uartPacket = UartWrapperPacket(UartMessageType.UART_MESSAGE, uartMessage).getPacket()
 
         resultCollector     = Collector(timeout=2, topic=SystemTopics.resultPacket)
         individualCollector = BatchCollector(timeout=15, topic=SystemTopics.meshResultPacket)

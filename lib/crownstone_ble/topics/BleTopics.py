@@ -1,6 +1,5 @@
 
 class BleTopics:
-    advertisement         = "advertisement"         #
-    verifiedAdvertisement = "verifiedAdvertisement" #
-    iBeaconAdvertisement  = "iBeaconAdvertisement"  #
-
+     rawAdvertisement  = "rawAdvertisement"
+     advertisement     = "advertisement"
+     newDataAvailable  = "newDataAvailable"
