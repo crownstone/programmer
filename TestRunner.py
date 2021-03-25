@@ -8,7 +8,7 @@ from lib.crownstone_uart import CrownstoneUart, UartEventBus
 from lib.crownstone_uart.topics.DevTopics import DevTopics
 from getPinLayout import ADDITIONAL_WAIT_AFTER_BOOT_BEFORE_DIMMING, REQUIRED_RSSI
 
-import signal,time, asyncio, sys, random
+import signal,time, asyncio, sys, random, logging
 
 # if this script is running, the button has been pressed
 
@@ -38,7 +38,7 @@ from lib.PowerStateMeasurement.PowerStateMeasurement import PowerStateMeasuremen
 from util.util import programCrownstone, findUsbBleDongleHciIndex, findUartAddress, findUsbBleDongleHciAddress
 
 from enum import Enum
-
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 IGBTs = 1
 RELAY = 2
 
@@ -100,9 +100,9 @@ class TestRunner:
 
 
 
-    def close(self, source=None, frame=None):
+    async def close(self, source=None, frame=None):
         print(gt(), "----- Closing Test...")
-        self.cleanup()
+        await self.cleanup()
         self.loadingRunner.stop()
         try:
             self.displayDriver.clearDisplay(True)
@@ -117,12 +117,12 @@ class TestRunner:
         quit()
 
 
-    def cleanup(self):
+    async def cleanup(self):
         if self.uart is not None:
             self.uart.stop()
 
         if self.ble is not None:
-            self.ble.shutDown()
+            await self.ble.shutDown()
 
 
     async def runTests(self):
@@ -588,7 +588,7 @@ class TestRunner:
         print(gt(), "----- ----- ENDED IN ERROR CODE", code)
         codeArray = code.value
         self.loadingRunner.stop()
-        self.cleanup()
+        await self.cleanup()
         while self.running:
             self.displayDriver.setSymbol("E")
             await self._quickSleeper(0.7)
@@ -607,7 +607,7 @@ class TestRunner:
 
     async def endInSuccess(self):
         self.loadingRunner.stop()
-        self.cleanup()
+        await self.cleanup()
 
         await self.displayDriver.showBuildUp()
         while self.running:

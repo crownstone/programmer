@@ -9,13 +9,13 @@ class UartTxType(IntEnum):
 	SESSION_NONCE =                    1
 	HEARTBEAT =                        2
 	STATUS =                           3
+	GET_MAC_ADDRESS =                  4
 	CONTROL =                          10
 	HUB_DATA_REPLY =                   11
 
 	ENABLE_ADVERTISEMENT =             50000
 	ENABLE_MESH =                      50001
 	GET_CROWNSTONE_ID =                50002
-	GET_MAC_ADDRESS =                  50003
 
 	ADC_CONFIG_INC_RANGE_CURRENT =     50103
 	ADC_CONFIG_DEC_RANGE_CURRENT =     50104
@@ -38,6 +38,7 @@ class UartRxType(IntEnum):
 	SESSION_NONCE =                    1
 	HEARTBEAT =                        2
 	STATUS =                           3
+	MAC_ADDRESS =                      4
 	RESULT_PACKET =                    10
 
 	ERR_REPLY_PARSING_FAILED =         9900
