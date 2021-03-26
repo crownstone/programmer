@@ -1,4 +1,5 @@
 import asyncio, signal
+import time
 from threading import Timer
 import RPi.GPIO as GPIO
 
@@ -17,9 +18,6 @@ class ButtonWatcher:
     active = False
 
     def __init__(self, catchSignal=False):
-        self.loop        = asyncio.new_event_loop()
-        self.closingLoop = asyncio.new_event_loop()
-
         if catchSignal:
             signal.signal(signal.SIGINT, self._end)
             signal.signal(signal.SIGTERM, self._end)
@@ -46,7 +44,7 @@ class ButtonWatcher:
     def stop(self):
         print("Stopping button watcher")
         self.active = False
-        self.closingLoop.run_until_complete(self.waitToFinish())
+        asyncio.run(self.waitToFinish())
         print("button watcher stopped")
 
     def run(self):
@@ -61,7 +59,7 @@ class ButtonWatcher:
         self.loopPending = True
 
         while self.active:
-            self.loop.run_until_complete(self.checkButtonStates())
+            asyncio.run(self.checkButtonStates())
 
         self.loopPending = False
 

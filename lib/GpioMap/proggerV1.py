@@ -58,7 +58,7 @@ p_GPIO_TO_PIN = {
 # get array of pins
 p_DISPLAY_BOARD_OUTPUT_PINS = []
 for gpio in displayGpio:
-    p_DISPLAY_BOARD_OUTPUT_PINS.append(p_GPIO_TO_PIN[displayGpio[gpio]])
+    p_DISPLAY_BOARD_OUTPUT_PINS.append(p_GPIO_TO_PIN[p_BOARD_TO_GPIO[gpio]])
 
 
 # get array of pins

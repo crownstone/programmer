@@ -20,8 +20,6 @@ class LedController:
         self.interval = 0.4
 
         self.ledSolidOn     = False
-        self.loop        = asyncio.new_event_loop()
-        self.closingLoop = asyncio.new_event_loop()
 
     def __del__(self):
         self.stop()
@@ -62,7 +60,7 @@ class LedController:
     def stop(self):
         print("Stopping LED controller")
         self.active = False
-        self.closingLoop.run_until_complete(self.waitToFinish())
+        asyncio.run(self.waitToFinish())
         print("Stopped LED controller")
 
     def cleanup(self):
@@ -81,9 +79,9 @@ class LedController:
 
         while self.active:
             if self.ledSolidOn:
-                self.loop.run_until_complete(self._cycle([1]))
+                asyncio.run(self._cycle([1]))
             else:
-                self.loop.run_until_complete(self._cycle([1,0]))
+                asyncio.run(self._cycle([1,0]))
 
         self.loopPending = False
 

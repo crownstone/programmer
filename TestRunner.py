@@ -74,8 +74,6 @@ def gt():
 class TestRunner:
 
     def __init__(self):
-        self.loop = asyncio.new_event_loop()
-
         self.uart = None
         self.ble = None
         self.loadingRunner = None
@@ -96,14 +94,12 @@ class TestRunner:
         signal.signal(signal.SIGTERM, self.close)
 
         # run tests
-        self.loop.run_until_complete(self.runTests())
+        asyncio.run(self.testRunner())
 
 
-
-
-    async def close(self, source=None, frame=None):
+    def close(self, source=None, frame=None):
         print(gt(), "----- Closing Test...")
-        await self.cleanup()
+        self.running = False
         self.loadingRunner.stop()
         try:
             self.displayDriver.clearDisplay(True)
@@ -112,10 +108,6 @@ class TestRunner:
 
         self.displayDriver.cleanup()
         self.powerState.cleanup()
-        self.running = False
-        print(gt(), "----- Test is closed. Quitting Test...")
-        time.sleep(2)
-        quit()
 
 
     async def cleanup(self):
@@ -124,6 +116,15 @@ class TestRunner:
 
         if self.ble is not None:
             await self.ble.shutDown()
+
+
+    async def testRunner(self):
+        print(gt(), "Starting test run...")
+        await self.runTests()
+        print(gt(), "Cleaning up...")
+        await self.cleanup()
+        print(gt(), "----- Test is closed. Quitting Test...")
+        quit()
 
 
     async def runTests(self):

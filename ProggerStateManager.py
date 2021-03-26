@@ -11,17 +11,13 @@ from subprocess import Popen, PIPE
 
 
 class ProggerStateManager:
-    buttonWatcher = None
-    ledController = None
 
-    running = False
-
-    testsActivated = False
-    lidClosed = None
-
-    session = None
 
     def __init__(self):
+        self.testsActivated = False
+        self.lidClosed = None
+        self.session = None
+
         print("watchers initiated")
         self.buttonWatcher = ButtonWatcher()
         self.ledController = LedController()
