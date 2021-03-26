@@ -16,7 +16,6 @@ class ModeChecker:
     def handleAdvertisement(self, scanData: ScanData):
         if scanData.address != self.address:
             return
-
         self.result = scanData.operationMode
 
         if self.targetMode is not None and self.result != self.targetMode and self.waitUntilInTargetMode:

@@ -1,8 +1,9 @@
 from util import path
 
+from crownstone_core.packets.serviceDataParsers.containers.elements.AdvTypes import AdvType
 from crownstone_ble.Exceptions import BleError
-from vendor.crownstone_core.Enums import CrownstoneOperationMode
-from vendor.crownstone_core.Exceptions import CrownstoneBleException
+from crownstone_core.Enums import CrownstoneOperationMode
+from crownstone_core.Exceptions import CrownstoneBleException
 from lib.crownstone_ble.core.CrownstoneBle import CrownstoneBle
 from lib.crownstone_uart import CrownstoneUart, UartEventBus
 from lib.crownstone_uart.topics.DevTopics import DevTopics
@@ -35,10 +36,10 @@ import signal,time, asyncio, sys, random, logging
 from DisplayBoard.DisplayDriver import DisplayDriver
 from DisplayBoard.LoadingRunner import LoadingRunner
 from lib.PowerStateMeasurement.PowerStateMeasurement import PowerStateMeasurement
-from util.util import programCrownstone, findUsbBleDongleHciIndex, findUartAddress, findUsbBleDongleHciAddress
+from util.util import programCrownstone, findUartAddress, findUsbBleDongleHciAddress
 
 from enum import Enum
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 IGBTs = 1
 RELAY = 2
 
@@ -330,10 +331,13 @@ class TestRunner:
                 await self.endInErrorCode(ErrorCodes.E_NOT_SEEN_IN_SETUP_MODE)
                 return False
         except CrownstoneBleException as err:
+            print("err", err)
             if err.type == BleError.NO_SCANS_RECEIVED:
                 await self.endInErrorCode(ErrorCodes.E_NO_BLE_SCAN_RECEIVED)
                 return False
         except:
+            e = sys.exc_info()[0]
+            print("err other fail", e)
             await self.endInErrorCode(ErrorCodes.E_NOT_SEEN_IN_SETUP_MODE)
             return False
 
@@ -349,23 +353,18 @@ class TestRunner:
         print(gt(), "----- Checking if Crownstone is in normal mode...")
         # BLE--> Check for advertisements in normal mode
         try:
-            operationMode = await self.ble.getMode(self.macAddress)
-            if operationMode == CrownstoneOperationMode.NORMAL:
-                print(gt(), "----- Setup was successful. Crownstone is in normal mode")
-                return True
-            else:
-                await self.endInErrorCode(ErrorCodes.E_COULD_NOT_SETUP)
-                return False
+            await self.ble.waitForMode(self.macAddress, CrownstoneOperationMode.NORMAL)
+            return True
         except CrownstoneBleException as err:
             if err.type == BleError.NO_SCANS_RECEIVED:
                 await self.endInErrorCode(ErrorCodes.E_NOT_SEEN_AT_ALL)
                 return False
+            elif err.type == BleError.DIFFERENT_MODE_THAN_REQUIRED:
+                await self.endInErrorCode(ErrorCodes.E_COULD_NOT_SETUP)
+                return False
         except:
             await self.endInErrorCode(ErrorCodes.E_COULD_NOT_SETUP)
             return False
-
-
-
 
 
     async def checkHighPowerState(self):
@@ -558,17 +557,19 @@ class TestRunner:
 
     async def getPowerMeasurement(self, expectedSwitchState):
         result = [True, None, None]
-        def handleMessage(container, data):
+        def handleMessage(data):
+            nonlocal result
             # check to ensure its this crownstone, not a mesh stone if there are multiple proggers
-            if data["id"] == TESTING_CROWNSTONE_ID:
-                # container[1] = (data["powerUsageReal"],data["powerUsageApparent"],data["powerFactor"])
-                container[1] = data["powerUsageReal"]
-                container[2] = data["switchState"]
-                if data["switchState"] == expectedSwitchState:
+            if data.crownstoneId == TESTING_CROWNSTONE_ID:
+                if data.type != AdvType.CROWNSTONE_STATE:
+                    return
+                result[1] = data.powerUsageReal
+                result[2] = data.switchState.raw
+                if data.switchState == expectedSwitchState:
                     # this will stop the measurement
-                    container[0] = False
+                    result[0] = False
 
-        subscriptionId = UartEventBus.subscribe(DevTopics.newServiceData, lambda data: handleMessage(result, data))
+        subscriptionId = UartEventBus.subscribe(DevTopics.newServiceData, handleMessage)
 
         counter = 0
         while result[0] and counter < 100:
