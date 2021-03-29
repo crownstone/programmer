@@ -60,7 +60,8 @@ class ErrorCodes(Enum):
     E_COULD_NOT_SETUP                = [6]
     E_RELAY_NOT_ON                   = [7,1]
     E_RELAY_NOT_OFF                  = [7,2]
-    E_POWER_MEASUREMENT_NOT_WORKING  = [8]
+    E_POWER_MEASUREMENT_NOT_WORKING  = [8,1]
+    E_COULD_NOT_ZERO_POWER_MEASUREMENT = [8,2]
     E_IGBT_Q1_NOT_WORKING            = [9,1]
     E_IGBT_Q2_NOT_WORKING            = [9,2]
     E_IGBTS_NOT_WORKING              = [9,3]
@@ -188,6 +189,8 @@ class TestRunner:
             if await self.checkLowPowerState() is False:
                 return
 
+            if await self.zeroCrownstone() is False:
+                return
             # extra await to ensure the firmware decides that the dimmer can be used.
 
             print(gt(), "----- Waiting for dimmer circuit to power up...0%")
@@ -343,9 +346,6 @@ class TestRunner:
             return False
 
 
-
-
-
     async def checkForNormalMode(self):
         # kill test here if we need to stop.TestRunner.py
         if not self.running:
@@ -385,6 +385,20 @@ class TestRunner:
         else:
             self.highPowerMeasurement = measurement["powerMeasurement"]
 
+
+    async def zeroCrownstone(self):
+        # kill test here if we need to stop.
+        if not self.running:
+            return False
+
+        try:
+            mW = int(1000*self.lowPowerMeasurement)
+            print(gt(), "----- Setting the power measurement to zero...", mW)
+            await self.uart.state.setPowerZero(mW)
+        except:
+            print(gt(), "Something went wrong with setting power to zero.")
+            await self.endInErrorCode(ErrorCodes.E_COULD_NOT_ZERO_POWER_MEASUREMENT)
+            return False
 
     async def checkLowPowerState(self):
         # kill test here if we need to stop.
@@ -501,7 +515,7 @@ class TestRunner:
             return False
         else:
             dW_measure_high = abs(measurement["powerMeasurement"] - self.highPowerMeasurement)
-            dW_measure_low = abs(measurement["powerMeasurement"] - self.lowPowerMeasurement)
+            dW_measure_low  = abs(measurement["powerMeasurement"] - self.lowPowerMeasurement)
             print("dW_measure_high > dW_measure_low", dW_measure_high, dW_measure_low)
             if dW_measure_high < dW_measure_low:
                 pass
