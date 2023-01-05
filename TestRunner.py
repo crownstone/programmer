@@ -69,12 +69,18 @@ class ErrorCodes(Enum):
 
 
 def gt():
+    """
+    returns formatted time
+    """
     return "{:.3f}".format(time.time())
 
 
 class TestRunner:
 
     def __init__(self):
+        """
+        Constructs and launches tests async.
+        """
         self.uart = None
         self.ble = None
         self.loadingRunner = None
@@ -99,6 +105,9 @@ class TestRunner:
 
 
     def close(self, source=None, frame=None):
+        """
+        Tears down loaderinRunner, displayDriver and powerState.
+        """
         print(gt(), "----- Closing Test...")
         self.running = False
         self.loadingRunner.stop()
@@ -112,6 +121,9 @@ class TestRunner:
 
 
     async def cleanup(self):
+        """
+        Tears down crownstone UART and BLE libs.
+        """
         if self.uart is not None:
             self.uart.stop()
 
@@ -120,6 +132,9 @@ class TestRunner:
 
 
     async def testRunner(self):
+        """
+        Core run method. Programs inserted device, executes tests and tears down when finished. quit()s.
+        """
         print(gt(), "Starting test run...")
         await self.runTests()
         print(gt(), "Cleaning up...")
@@ -129,6 +144,13 @@ class TestRunner:
 
 
     async def runTests(self):
+        """
+        Initializes crownstone python libraries.
+        Programs the inserted crownstone.
+        Runs all the test methods and indicates progress.
+        writes progress to the 7-segment display.
+        After tests are successful, reprogram the inserted crownstone.
+        """
         # show loading bar
         self.loadingRunner.start()
 
@@ -254,6 +276,9 @@ class TestRunner:
 
 
     async def initLibs(self):
+        """
+        Sets up libs for UART and BLE with dummy keys.
+        """
         import traceback
         self.uart = CrownstoneUart()
         try:
@@ -283,6 +308,9 @@ class TestRunner:
 
 
     async def enableUart(self):
+        """
+        Send uart control command to crownstone to enable both RX and TX.
+        """
         # enable UART
         print(gt(), "----- Enabling UART...")
         self.uart._usbDev.setUartMode(3)
@@ -622,6 +650,9 @@ class TestRunner:
             seconds -= 0.1
 
     async def endInSuccess(self):
+        """
+        Tear down test and communicate success to user.
+        """
         self.loadingRunner.stop()
         await self.cleanup()
 

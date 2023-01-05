@@ -2,6 +2,10 @@ from config import FW_SCRIPT_PATH
 
 
 def findUartAddress():
+    """
+    Checks if an ACM device can be found in the /dev/ folder.
+    Returns: path to first such device if found as string, else False.
+    """
     import subprocess
     from subprocess import Popen, PIPE
 

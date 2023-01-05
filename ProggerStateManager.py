@@ -11,11 +11,18 @@ from subprocess import Popen, PIPE
 
 
 class ProggerStateManager:
-
+    """
+    This class is responsible:
+    - monitoring open/closed state of lid
+    - operating the status led
+    - launching/killing the sub process of the Test Runner.
+    """
 
     def __init__(self):
         self.testsActivated = False
         self.lidClosed = None
+
+        # handle to the sub process for the tests.
         self.session = None
 
         print("watchers initiated")
@@ -31,8 +38,11 @@ class ProggerStateManager:
         self.running = True
         self.run()
 
-
     def run(self):
+        """
+        Starts test on button press (if not yet started).
+        Checks if lid is closed and kill tests if not.
+        """
         while self.running:
             if self.buttonWatcher.buttonState == True and self.buttonWatcher.lidClosed == True:
                 # button pressed
@@ -44,10 +54,10 @@ class ProggerStateManager:
             if self.buttonWatcher.lidClosed != self.lidClosed:
                 self.lidClosed = self.buttonWatcher.lidClosed
                 if self.lidClosed:
-                    print("Lid is closed.")
+                    print("Lid has been closed.")
                     self.ledController.blinkFast()
                 else:
-                    print("Lid is open.")
+                    print("Lid has been opened.")
                     self.killTests()
                     self.testsActivated = False
                     self.ledController.blink()
@@ -55,11 +65,18 @@ class ProggerStateManager:
             time.sleep(0.1)
 
     def runTest(self):
+        """
+        Launch sub process for test runner script.
+        """
         self.testsActivated = True
         self.session = subprocess.Popen(["sudo", "python3", TEST_RUNNER_PATH], preexec_fn=os.setsid)
 
-
     def killTests(self):
+        """
+        Terminate sub process for Test Runner if it exists. If that fails, kill it.
+
+        Postcondition: self.session == None.
+        """
         self.ledController.blink()
         if self.session is not None:
             print("ProggerStateManager: Terminating tests...")
@@ -76,13 +93,10 @@ class ProggerStateManager:
                 time.sleep(3)
             self.session = None
 
-
     def cleanup(self, source=None, frame=None):
         """
-        Triggered by a kill command
-        :param source:
-        :param frame:
-        :return:
+        Callback for SIGINT and SIGTERM signals.
+        Kills tests, button watcher and led controller, then quit()s.
         """
         print("Cleaning up the ProggerStateManager")
         # stop tests
