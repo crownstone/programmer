@@ -28,7 +28,7 @@
     ```
     There will be a reboot.
 - Ensure that the service starts on boot without ssh.
-- Finally, when everything has been tested REALLY WELL, run the read-only-fs.sh in the danger folder:
+- Finally, when everything has been tested, make the OS read only, by running:
     ```
     sudo /media/programmer_code_dongle/_system_scripts/danger/read-only-fs.sh
     ```
