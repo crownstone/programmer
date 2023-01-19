@@ -1,10 +1,10 @@
 # Manual
 
-This manual describes how to program and test Crownstones, given a programmer with USB stick.
+This manual describes how to program and test Crownstones, given a programmer with USB drive.
 
 ## Intro
 
-This is the Programmer:
+This is the programmer:
 
 <img src="images/programmer-closed.png" width="600"/>
 
