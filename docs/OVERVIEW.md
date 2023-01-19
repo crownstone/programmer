@@ -28,6 +28,7 @@ Most of the code, is located on the USB drive. The most important:
 - `ProggerStateManager.py`: Checks the lid and button, controls the status LED of the progger, and runs the `TestRunner.py`.
 - `TestRunner.py`: Contains the code that actually performs the flashing and testing.
 
+```mermaid
 ---
 title: Programmer subprocesses (assuming all steps succeed)
 ---
@@ -45,5 +46,4 @@ sequenceDiagram
     TestRunner.py-->>-ProggerStateManager.py: return success
     TestRunner.py-->>ProggerStateManager.py: onLidOpened, e.g. replace crownstone<br>killTests()
     ProggerStateManager.py-->>-UsbWatcher.py: onProgrammerDongleDisConnect
-
-The `run test`
+```
