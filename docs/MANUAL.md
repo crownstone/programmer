@@ -162,7 +162,7 @@ In case the *Power LED* is off, ensure the power cable is securely connected to 
 
 ## Emergency backup drive
 
-** Explicit permission from the Crownstone team is required before following these steps. **
+**Explicit permission from the Crownstone team is required before following these steps.**
 
 There is an Emergency USB drive hidden within the programmer. This will just load firmware onto the Crownstone and does **not** test anything.
 
